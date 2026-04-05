@@ -1,7 +1,8 @@
 [package]
-name = "xtask"
+name = "moonlight"
 authors.workspace = true
 version.workspace = true
+description = "Audio processing library for Rustacean & Musician to compile Rust programs to a music"
 edition.workspace = true
 license.workspace = true
 readme.workspace = true
@@ -9,8 +10,3 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-clap.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-anyhow.workspace = true
