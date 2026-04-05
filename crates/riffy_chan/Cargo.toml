@@ -2,6 +2,7 @@
 name = "riffy_chan"
 authors.workspace = true
 version.workspace = true
+description = "RIFF decoder & encoder for/by Rust-lang"
 edition.workspace = true
 license.workspace = true
 readme.workspace = true
