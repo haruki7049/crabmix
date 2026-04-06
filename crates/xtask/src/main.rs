@@ -100,125 +100,157 @@ fn all() -> Result {
 
 #[tracing::instrument]
 fn build() -> Result {
-    tracing::info!("Running...");
+    tracing::info!("Starting...");
 
-    // cargo build --workspace
-    {
-        let mut build_command = Command::new(CARGO.as_str());
-        build_command.arg("build");
-        build_command.arg("--workspace");
-
-        let exit_status = build_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo build --workspace is failed");
-        }
-    }
-
-    // cargo build --release --workspace
-    {
-        let mut build_release_command = Command::new(CARGO.as_str());
-        build_release_command.arg("build");
-        build_release_command.arg("--release");
-        build_release_command.arg("--workspace");
-
-        let exit_status = build_release_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo build --release --workspace is failed");
-        }
-    }
+    build_debug()?;
+    build_release()?;
 
     tracing::info!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn build_debug() -> Result {
+    tracing::debug!("Running...");
+
+    let mut build_command = Command::new(CARGO.as_str());
+    build_command.arg("build");
+    build_command.arg("--workspace");
+
+    let exit_status = build_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo build --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn build_release() -> Result {
+    tracing::debug!("Running...");
+
+    let mut build_release_command = Command::new(CARGO.as_str());
+    build_release_command.arg("build");
+    build_release_command.arg("--release");
+    build_release_command.arg("--workspace");
+
+    let exit_status = build_release_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo build --release --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
     Ok(())
 }
 
 #[tracing::instrument]
 fn check() -> Result {
-    tracing::info!("Running...");
+    tracing::info!("Starting...");
 
-    // cargo check --workspace
-    {
-        let mut check_command = Command::new(CARGO.as_str());
-        check_command.arg("check");
-        check_command.arg("--workspace");
-
-        let exit_status = check_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo check --workspace is failed");
-        }
-    }
-
-    // cargo check --release --workspace
-    {
-        let mut check_release_command = Command::new(CARGO.as_str());
-        check_release_command.arg("check");
-        check_release_command.arg("--release");
-        check_release_command.arg("--workspace");
-
-        let exit_status = check_release_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo check --release --workspace is failed");
-        }
-    }
+    check_debug()?;
+    check_release()?;
 
     tracing::info!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn check_debug() -> Result {
+    tracing::debug!("Running...");
+
+    let mut check_command = Command::new(CARGO.as_str());
+    check_command.arg("check");
+    check_command.arg("--workspace");
+
+    let exit_status = check_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo check --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn check_release() -> Result {
+    tracing::debug!("Running...");
+
+    let mut check_release_command = Command::new(CARGO.as_str());
+    check_release_command.arg("check");
+    check_release_command.arg("--release");
+    check_release_command.arg("--workspace");
+
+    let exit_status = check_release_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo check --release --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
     Ok(())
 }
 
 #[tracing::instrument]
 fn clippy() -> Result {
-    tracing::info!("Running...");
+    tracing::info!("Starting...");
 
-    // cargo clippy --workspace
-    {
-        let mut clippy_command = Command::new(CARGO.as_str());
-        clippy_command.arg("clippy");
-        clippy_command.arg("--workspace");
-
-        let exit_status = clippy_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo clippy --workspace is failed");
-        }
-    }
+    clippy_debug()?;
+    clippy_release()?;
 
     // cargo clippy --release --workspace
-    {
-        let mut clippy_release_command = Command::new(CARGO.as_str());
-        clippy_release_command.arg("clippy");
-        clippy_release_command.arg("--release");
-        clippy_release_command.arg("--workspace");
-
-        let exit_status = clippy_release_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo clippy --release --workspace is failed");
-        }
-    }
+    {}
 
     tracing::info!("Finished.");
     Ok(())
 }
 
 #[tracing::instrument]
-fn test() -> Result {
-    tracing::info!("Running...");
+fn clippy_debug() -> Result {
+    tracing::debug!("Running...");
 
-    // cargo test --workspace
-    {
-        let mut test_command = Command::new(CARGO.as_str());
-        test_command.arg("test");
-        test_command.arg("--workspace");
+    let mut clippy_command = Command::new(CARGO.as_str());
+    clippy_command.arg("clippy");
+    clippy_command.arg("--workspace");
 
-        let exit_status = test_command.spawn()?.wait()?;
+    let exit_status = clippy_command.spawn()?.wait()?;
 
-        if !exit_status.success() {
-            panic!("cargo test --workspace is failed");
-        }
+    if !exit_status.success() {
+        panic!("cargo clippy --workspace is failed");
     }
+
+    tracing::debug!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn clippy_release() -> Result {
+    tracing::debug!("Running...");
+
+    let mut clippy_release_command = Command::new(CARGO.as_str());
+    clippy_release_command.arg("clippy");
+    clippy_release_command.arg("--release");
+    clippy_release_command.arg("--workspace");
+
+    let exit_status = clippy_release_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo clippy --release --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn test() -> Result {
+    tracing::info!("Starting...");
+
+    test_debug()?;
+    test_release()?;
 
     // cargo test --release --workspace
     {
@@ -239,36 +271,86 @@ fn test() -> Result {
 }
 
 #[tracing::instrument]
+fn test_debug() -> Result {
+    tracing::debug!("Running...");
+
+    let mut test_command = Command::new(CARGO.as_str());
+    test_command.arg("test");
+    test_command.arg("--workspace");
+
+    let exit_status = test_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo test --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn test_release() -> Result {
+    tracing::debug!("Running...");
+
+    let mut test_release_command = Command::new(CARGO.as_str());
+    test_release_command.arg("test");
+    test_release_command.arg("--release");
+    test_release_command.arg("--workspace");
+
+    let exit_status = test_release_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo test --release --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
 fn doc() -> Result {
     tracing::info!("Running...");
 
-    // cargo doc --workspace
-    {
-        let mut doc_command = Command::new(CARGO.as_str());
-        doc_command.arg("doc");
-        doc_command.arg("--workspace");
-
-        let exit_status = doc_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo doc --workspace is failed");
-        }
-    }
-
-    // cargo doc --release --workspace
-    {
-        let mut doc_release_command = Command::new(CARGO.as_str());
-        doc_release_command.arg("doc");
-        doc_release_command.arg("--release");
-        doc_release_command.arg("--workspace");
-
-        let exit_status = doc_release_command.spawn()?.wait()?;
-
-        if !exit_status.success() {
-            panic!("cargo doc --release --workspace is failed");
-        }
-    }
+    doc_debug()?;
+    doc_release()?;
 
     tracing::info!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn doc_debug() -> Result {
+    tracing::debug!("Running...");
+
+    let mut doc_command = Command::new(CARGO.as_str());
+    doc_command.arg("doc");
+    doc_command.arg("--workspace");
+
+    let exit_status = doc_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo doc --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
+    Ok(())
+}
+
+#[tracing::instrument]
+fn doc_release() -> Result {
+    tracing::debug!("Running...");
+
+    let mut doc_release_command = Command::new(CARGO.as_str());
+    doc_release_command.arg("doc");
+    doc_release_command.arg("--release");
+    doc_release_command.arg("--workspace");
+
+    let exit_status = doc_release_command.spawn()?.wait()?;
+
+    if !exit_status.success() {
+        panic!("cargo doc --release --workspace is failed");
+    }
+
+    tracing::debug!("Finished.");
     Ok(())
 }
