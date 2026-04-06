@@ -186,6 +186,9 @@ dependencies = [
 [[package]]
 name = "riffy_chan"
 version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "rustttwavvv"
