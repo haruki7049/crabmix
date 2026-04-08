@@ -284,4 +284,11 @@ mod chunk_tests {
 
         Ok(())
     }
+
+    #[test]
+    fn load_webp() -> Result<(), Box<dyn std::error::Error>> {
+        let bytes = include_bytes!("./assets/test_DJ.webp");
+        _ = Chunk::try_from(bytes.to_vec())?;
+        Ok(())
+    }
 }
