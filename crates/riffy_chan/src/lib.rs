@@ -58,93 +58,102 @@ pub enum Chunk {
     Riff { four_cc: FourCC, chunks: Vec<Chunk> },
 }
 
+impl Chunk {
+    fn size(&self) -> usize {
+        match self {
+            Self::Chunk { data, .. } => Self::chunk_size(data),
+            Self::Riff { chunks, .. } => Self::riff_chunk_size(chunks),
+            Self::List { chunks } => Self::list_chunk_size(chunks),
+        }
+    }
+
+    fn chunk_size(data: &[u8]) -> usize {
+        const FOUR_CC_BYTES: usize = 4;
+        let data_bytes: usize = data.len();
+
+        data_bytes + FOUR_CC_BYTES
+    }
+
+    fn riff_chunk_size(chunks: &[Chunk]) -> usize {
+        const RIFF_BYTES: usize = 4;
+        const FOUR_CC_BYTES: usize = 4;
+        let chunks_bytes = chunks.len();
+
+        chunks_bytes + RIFF_BYTES + FOUR_CC_BYTES
+    }
+
+    fn list_chunk_size(chunks: &[Chunk]) -> usize {
+        const LIST_BYTES: usize = 4;
+        const FOUR_CC_BYTES: usize = 4;
+        let chunks_bytes = chunks.iter().map(Self::size).count();
+
+        chunks_bytes + LIST_BYTES + FOUR_CC_BYTES
+    }
+}
+
 impl TryFrom<Vec<u8>> for Chunk {
     type Error = Box<dyn std::error::Error>;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let riff: FourCC = FourCC::from([b'R', b'I', b'F', b'F']);
-        let list: FourCC = FourCC::from([b'L', b'I', b'S', b'T']);
-
+        let riff = b"RIFF";
+        let list = b"LIST";
         let four_cc_raw = value[0..4].to_vec();
-        let four_cc: FourCC = FourCC::try_from(four_cc_raw)?;
-        let rest: Vec<u8> = value.iter().skip(4).cloned().collect();
 
-        match four_cc {
-            r if r == riff => Self::create_riff_chunk(rest),
-            l if l == list => Self::create_list_chunk(rest),
-            _ => Self::create_chunk(four_cc, rest),
+        match four_cc_raw {
+            r if r == riff => Self::parse_riff(&value),
+            l if l == list => Self::parse_list(&value),
+            _ => Self::parse_chunk(&value),
         }
     }
 }
 
 impl Chunk {
-    fn create_chunk(four_cc: FourCC, data: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
-        let v = Chunk::Chunk { four_cc, data };
-        Ok(v)
-    }
+    fn parse_chunk(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
+        let four_cc_raw = buffer[0..4].to_vec();
+        let four_cc = FourCC::try_from(four_cc_raw)?;
 
-    fn create_list_chunk(value: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
-        let chunks = Self::to_chunk_list(value)?;
-        Ok(Self::List { chunks })
-    }
+        let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
+        dbg!(size);
+        let data = buffer[8..8 + size].to_vec();
 
-    fn create_riff_chunk(value: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
-        if value.len() < 8 {
-            return Err(Box::new(ChunkTryFromError::InvalidFormat));
+        if size < 8 {
+            return Err(Box::new(ChunkTryFromError::SizeMismatch));
         }
 
-        let four_cc_raw = value
-            .first_chunk::<4>()
-            .ok_or(ChunkTryFromError::NoFourCC)?;
-        let four_cc = FourCC::from(*four_cc_raw);
-        let rest: Vec<u8> = value.iter().skip(4).cloned().collect();
-        let chunks = Self::to_chunk_list(rest)?;
+        Ok(Chunk::Chunk { four_cc, data })
+    }
+
+    fn parse_list(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
+        let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
+        let mut chunks = Vec::new();
+        let mut offset = 8;
+
+        while offset < size {
+            let chunk = Chunk::parse_chunk(&buffer[offset..])?;
+            let chunk_size = Chunk::size(&chunk);
+            chunks.push(chunk);
+            offset += chunk_size;
+        }
+
+        Ok(Chunk::List { chunks })
+    }
+
+    fn parse_riff(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
+        let four_cc_raw = buffer[0..4].to_vec();
+        let four_cc = FourCC::try_from(four_cc_raw)?;
+
+        let size = u32::from_le_bytes(buffer[4..8].try_into().unwrap()) as usize;
+        let mut chunks = Vec::new();
+        let mut offset = 8;
+
+        while offset < size {
+            let chunk = Chunk::parse_chunk(&buffer[offset..])?;
+            let chunk_size = Chunk::size(&chunk);
+            chunks.push(chunk);
+            offset += chunk_size;
+        }
 
         Ok(Chunk::Riff { four_cc, chunks })
-    }
-
-    fn to_chunk_list(bytes: Vec<u8>) -> Result<Vec<Self>, Box<dyn std::error::Error>> {
-        let mut result: Vec<Chunk> = vec![];
-
-        let mut pos: usize = 0;
-        while pos < bytes.len() {
-            // Need at least 8 bytes for chunk header (FourCC + size)
-            if pos + 8 > bytes.len() {
-                // If we have leftover bytes that can't form a valid chunk header,
-                // this is not necessarily an error - it could be padding
-                // But we should check if there are any non-zero bytes
-                let mut has_data = false;
-                for &b in &bytes[pos..] {
-                    if b != 0 {
-                        has_data = true;
-                        break;
-                    }
-                }
-                if has_data {
-                    return Err(Box::new(ChunkTryFromError::InvalidFormat));
-                }
-                break;
-            }
-
-            let id = *bytes
-                .first_chunk::<4>()
-                .ok_or(ChunkTryFromError::InvalidId)?;
-            let size = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap()) as usize;
-            let next_pos = pos + 8 + size;
-
-            if next_pos > bytes.len() {
-                return Err(Box::new(ChunkTryFromError::SizeMismatch));
-            }
-
-            let four_cc = FourCC::from(id);
-            let chunk_data = bytes[pos + 8..next_pos].to_vec();
-            let chunk = Self::create_chunk(four_cc, chunk_data)?;
-            result.push(chunk);
-
-            pos = next_pos;
-        }
-
-        Ok(result)
     }
 }
 
@@ -191,33 +200,43 @@ mod chunk_tests {
     use super::{Chunk, FourCC};
 
     #[test]
-    fn load_chunk() {
-        let expected = b"fmt \x0c\x00\x00\x00EXAMPLE_DATA";
-        let bytes = include_bytes!("./assets/chunk.riff");
-        assert_eq!(bytes, expected);
+    fn load_chunk() -> Result<(), Box<dyn std::error::Error>> {
+        {
+            let expected = b"fmt \x0c\x00\x00\x00EXAMPLE_DATA";
+            let actual = include_bytes!("./assets/chunk.riff");
+            assert_eq!(expected, actual);
+        }
 
-        let expected = Chunk::Chunk {
-            four_cc: FourCC::from(*b"fmt "),
-            data: b"\x0c\x00\x00\x00EXAMPLE_DATA".to_vec(),
-        };
-        let actual = Chunk::try_from(bytes.to_vec()).expect("Failed to parse bytes into Chunk");
+        {
+            let bytes = include_bytes!("./assets/chunk.riff");
+            let expected = Chunk::Chunk {
+                four_cc: FourCC::from(*b"fmt "),
+                data: b"EXAMPLE_DATA".to_vec(),
+            };
+            let actual = Chunk::try_from(bytes.to_vec())?;
+            assert_eq!(expected, actual);
+        }
 
-        assert_eq!(expected, actual);
+        Ok(())
     }
 
     #[test]
-    fn load_list_chunk() {
+    fn load_list_chunk() -> Result<(), Box<dyn std::error::Error>> {
         let expected =
             b"LIST\x28\x00\x00\x00fmt \x0c\x00\x00\x00EXAMPLE_DATAfmt \x0c\x00\x00\x00EXAMPLE_DATA";
         let bytes = include_bytes!("./assets/list_chunk.riff");
         assert_eq!(bytes, expected);
 
-        let expected = Chunk::Chunk {
-            four_cc: FourCC::from(*b"fmt "),
-            data: b"\x0c\x00\x00\x00EXAMPLE_DATA".to_vec(),
-        };
-        let actual = Chunk::try_from(bytes.to_vec()).expect("Failed to parse bytes into Chunk");
+        {
+            let bytes = include_bytes!("./assets/chunk.riff");
+            let expected = Chunk::Chunk {
+                four_cc: FourCC::from(*b"fmt "),
+                data: b"EXAMPLE_DATA".to_vec(),
+            };
+            let actual = Chunk::try_from(bytes.to_vec())?;
+            assert_eq!(expected, actual);
+        }
 
-        assert_eq!(expected, actual);
+        Ok(())
     }
 }
