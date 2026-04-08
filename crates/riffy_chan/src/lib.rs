@@ -75,25 +75,28 @@ impl Chunk {
 
     fn chunk_size(data: &[u8]) -> usize {
         const FOUR_CC_BYTES: usize = 4;
+        const SIZE_BYTES: usize = 4;
         let data_bytes: usize = data.len();
 
-        data_bytes + FOUR_CC_BYTES
+        data_bytes + FOUR_CC_BYTES + SIZE_BYTES
     }
 
     fn riff_chunk_size(chunks: &[Chunk]) -> usize {
         const RIFF_BYTES: usize = 4;
         const FOUR_CC_BYTES: usize = 4;
+        const SIZE_BYTES: usize = 4;
         let chunks_bytes = chunks.len();
 
-        chunks_bytes + RIFF_BYTES + FOUR_CC_BYTES
+        chunks_bytes + RIFF_BYTES + FOUR_CC_BYTES + SIZE_BYTES
     }
 
     fn list_chunk_size(chunks: &[Chunk]) -> usize {
         const LIST_BYTES: usize = 4;
         const FOUR_CC_BYTES: usize = 4;
+        const SIZE_BYTES: usize = 4;
         let chunks_bytes = chunks.iter().map(Self::size).count();
 
-        chunks_bytes + LIST_BYTES + FOUR_CC_BYTES
+        chunks_bytes + LIST_BYTES + FOUR_CC_BYTES + SIZE_BYTES
     }
 }
 
@@ -119,8 +122,6 @@ impl Chunk {
         let four_cc = FourCC::try_from(four_cc_raw)?;
 
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
-        dbg!(buffer);
-        dbg!(size);
         let data = buffer[8..8 + size].to_vec();
 
         if size < 8 {
@@ -132,14 +133,20 @@ impl Chunk {
 
     fn parse_list(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
+        dbg!("List size: {}", size);
         let mut chunks = Vec::new();
         let mut offset = 8;
 
         while offset < size {
+            dbg!("Current offset: {}", offset);
+
             let chunk = Chunk::parse_chunk(&buffer[offset..])?;
             let chunk_size = Chunk::size(&chunk);
+            dbg!("Parsed chunk size: {}", chunk_size);
+
             chunks.push(chunk);
             offset += chunk_size;
+            dbg!("New offset: {}", offset);
         }
 
         Ok(Chunk::List { chunks })
