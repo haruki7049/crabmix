@@ -264,24 +264,24 @@ mod chunk_tests {
         Ok(())
     }
 
-    // #[test]
-    // fn load_riff_chunk() -> Result<(), Box<dyn std::error::Error>> {
-    //     {
-    //         let expected = b"RIFF\x14\x00\x00\x00TESTfmt \x00\x00\x00\x00data\x00\x00\x00\x00";
-    //         let bytes = include_bytes!("./assets/riff_chunk.riff");
-    //         assert_eq!(bytes, expected);
-    //     }
+    #[test]
+    fn load_riff_chunk() -> Result<(), Box<dyn std::error::Error>> {
+        {
+            let expected = b"RIFF\x14\x00\x00\x00TESTfmt \x00\x00\x00\x00data\x00\x00\x00\x00";
+            let bytes = include_bytes!("./assets/riff_chunk.riff");
+            assert_eq!(bytes, expected);
+        }
 
-    //     {
-    //         let bytes = include_bytes!("./assets/riff_chunk.riff");
-    //         let expected = Chunk::Chunk {
-    //             four_cc: FourCC::from(*b"fmt "),
-    //             data: b"EXAMPLE_DATA".to_vec(),
-    //         };
-    //         let actual = Chunk::try_from(bytes.to_vec())?;
-    //         assert_eq!(expected, actual);
-    //     }
+        {
+            let bytes = include_bytes!("./assets/riff_chunk.riff");
+            let expected = Chunk::Chunk {
+                four_cc: FourCC::from(*b"fmt "),
+                data: b"EXAMPLE_DATA".to_vec(),
+            };
+            let actual = Chunk::try_from(bytes.to_vec())?;
+            assert_eq!(expected, actual);
+        }
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }
