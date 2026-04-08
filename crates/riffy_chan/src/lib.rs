@@ -19,6 +19,31 @@ impl From<[u8; 4]> for FourCC {
     }
 }
 
+impl TryFrom<Vec<u8>> for FourCC {
+    type Error = FourCCTryFromError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        let actual_len = value.len();
+        if actual_len != 4 {
+            return Err(FourCCTryFromError::InvalidLength { actual: actual_len });
+        }
+
+        let slice: [u8; 4] = value
+            .try_into()
+            .or_else(|actual| Err(FourCCTryFromError::InvalidSlice { actual }))?;
+        Ok(Self::from(slice))
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum FourCCTryFromError {
+    #[error("Invalid length of Vec<u8>, expected 4 but actually {}", actual)]
+    InvalidLength { actual: usize },
+
+    #[error("Invalid slice. The received Vec<u8> is: {:?}", actual)]
+    InvalidSlice { actual: Vec<u8> },
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Chunk {
     /// A basic RIFF chunk with a FourCC identifier and data payload.
