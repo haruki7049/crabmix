@@ -291,4 +291,11 @@ mod chunk_tests {
         _ = Chunk::try_from(bytes.to_vec())?;
         Ok(())
     }
+
+    #[test]
+    fn load_wave() -> Result<(), Box<dyn std::error::Error>> {
+        let bytes = include_bytes!("./assets/sinewave.wav");
+        _ = Chunk::try_from(bytes.to_vec())?;
+        Ok(())
+    }
 }
