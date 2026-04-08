@@ -20,17 +20,19 @@ impl From<[u8; 4]> for FourCC {
 }
 
 impl TryFrom<Vec<u8>> for FourCC {
-    type Error = FourCCTryFromError;
+    type Error = Box<dyn std::error::Error>;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let actual_len = value.len();
         if actual_len != 4 {
-            return Err(FourCCTryFromError::InvalidLength { actual: actual_len });
+            return Err(Box::new(FourCCTryFromError::InvalidLength {
+                actual: actual_len,
+            }));
         }
 
         let slice: [u8; 4] = value
             .try_into()
-            .or_else(|actual| Err(FourCCTryFromError::InvalidSlice { actual }))?;
+            .map_err(|actual| FourCCTryFromError::InvalidSlice { actual })?;
         Ok(Self::from(slice))
     }
 }
@@ -57,16 +59,14 @@ pub enum Chunk {
 }
 
 impl TryFrom<Vec<u8>> for Chunk {
-    type Error = ChunkTryFromError;
+    type Error = Box<dyn std::error::Error>;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let riff: FourCC = FourCC::from([b'R', b'I', b'F', b'F']);
         let list: FourCC = FourCC::from([b'L', b'I', b'S', b'T']);
 
-        let four_cc_raw = value
-            .first_chunk::<4>()
-            .ok_or(ChunkTryFromError::NoFourCC)?;
-        let four_cc: FourCC = FourCC::from(*four_cc_raw);
+        let four_cc_raw = value[0..4].to_vec();
+        let four_cc: FourCC = FourCC::try_from(four_cc_raw)?;
         let rest: Vec<u8> = value.iter().skip(4).cloned().collect();
 
         match four_cc {
@@ -78,19 +78,19 @@ impl TryFrom<Vec<u8>> for Chunk {
 }
 
 impl Chunk {
-    fn create_chunk(four_cc: FourCC, data: Vec<u8>) -> Result<Self, ChunkTryFromError> {
+    fn create_chunk(four_cc: FourCC, data: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
         let v = Chunk::Chunk { four_cc, data };
         Ok(v)
     }
 
-    fn create_list_chunk(value: Vec<u8>) -> Result<Self, ChunkTryFromError> {
+    fn create_list_chunk(value: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
         let chunks = Self::to_chunk_list(value)?;
         Ok(Self::List { chunks })
     }
 
-    fn create_riff_chunk(value: Vec<u8>) -> Result<Self, ChunkTryFromError> {
+    fn create_riff_chunk(value: Vec<u8>) -> Result<Self, Box<dyn std::error::Error>> {
         if value.len() < 8 {
-            return Err(ChunkTryFromError::InvalidFormat);
+            return Err(Box::new(ChunkTryFromError::InvalidFormat));
         }
 
         let four_cc_raw = value
@@ -103,7 +103,7 @@ impl Chunk {
         Ok(Chunk::Riff { four_cc, chunks })
     }
 
-    fn to_chunk_list(bytes: Vec<u8>) -> Result<Vec<Self>, ChunkTryFromError> {
+    fn to_chunk_list(bytes: Vec<u8>) -> Result<Vec<Self>, Box<dyn std::error::Error>> {
         let mut result: Vec<Chunk> = vec![];
 
         let mut pos: usize = 0;
@@ -121,7 +121,7 @@ impl Chunk {
                     }
                 }
                 if has_data {
-                    return Err(ChunkTryFromError::InvalidFormat);
+                    return Err(Box::new(ChunkTryFromError::InvalidFormat));
                 }
                 break;
             }
@@ -133,7 +133,7 @@ impl Chunk {
             let next_pos = pos + 8 + size;
 
             if next_pos > bytes.len() {
-                return Err(ChunkTryFromError::SizeMismatch);
+                return Err(Box::new(ChunkTryFromError::SizeMismatch));
             }
 
             let four_cc = FourCC::from(id);
