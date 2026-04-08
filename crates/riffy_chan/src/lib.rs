@@ -19,6 +19,12 @@ impl From<[u8; 4]> for FourCC {
     }
 }
 
+impl From<&[u8; 4]> for FourCC {
+    fn from(from: &[u8; 4]) -> Self {
+        Self { inner: *from }
+    }
+}
+
 impl TryFrom<Vec<u8>> for FourCC {
     type Error = Box<dyn std::error::Error>;
 
@@ -113,6 +119,7 @@ impl Chunk {
         let four_cc = FourCC::try_from(four_cc_raw)?;
 
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
+        dbg!(buffer);
         dbg!(size);
         let data = buffer[8..8 + size].to_vec();
 
@@ -139,12 +146,12 @@ impl Chunk {
     }
 
     fn parse_riff(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
-        let four_cc_raw = buffer[0..4].to_vec();
-        let four_cc = FourCC::try_from(four_cc_raw)?;
-
-        let size = u32::from_le_bytes(buffer[4..8].try_into().unwrap()) as usize;
+        let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
         let mut chunks = Vec::new();
-        let mut offset = 8;
+
+        let four_cc_raw = buffer[8..12].to_vec();
+        let four_cc = FourCC::try_from(four_cc_raw)?;
+        let mut offset = 0;
 
         while offset < size {
             let chunk = Chunk::parse_chunk(&buffer[offset..])?;
@@ -222,16 +229,26 @@ mod chunk_tests {
 
     #[test]
     fn load_list_chunk() -> Result<(), Box<dyn std::error::Error>> {
-        let expected =
-            b"LIST\x28\x00\x00\x00fmt \x0c\x00\x00\x00EXAMPLE_DATAfmt \x0c\x00\x00\x00EXAMPLE_DATA";
-        let bytes = include_bytes!("./assets/list_chunk.riff");
-        assert_eq!(bytes, expected);
+        {
+            let expected =
+                b"LIST\x28\x00\x00\x00fmt \x0c\x00\x00\x00EXAMPLE_DATAfmt \x0c\x00\x00\x00EXAMPLE_DATA";
+            let bytes = include_bytes!("./assets/list_chunk.riff");
+            assert_eq!(bytes, expected);
+        }
 
         {
             let bytes = include_bytes!("./assets/chunk.riff");
-            let expected = Chunk::Chunk {
-                four_cc: FourCC::from(*b"fmt "),
-                data: b"EXAMPLE_DATA".to_vec(),
+            let expected = Chunk::List {
+                chunks: vec![
+                    Chunk::Chunk {
+                        four_cc: FourCC::from(b"fmt "),
+                        data: b"EXAMPLE_DATA".to_vec(),
+                    },
+                    Chunk::Chunk {
+                        four_cc: FourCC::from(b"fmt "),
+                        data: b"EXAMPLE_DATA".to_vec(),
+                    },
+                ],
             };
             let actual = Chunk::try_from(bytes.to_vec())?;
             assert_eq!(expected, actual);
@@ -239,4 +256,25 @@ mod chunk_tests {
 
         Ok(())
     }
+
+    // #[test]
+    // fn load_riff_chunk() -> Result<(), Box<dyn std::error::Error>> {
+    //     {
+    //         let expected = b"RIFF\x14\x00\x00\x00TESTfmt \x00\x00\x00\x00data\x00\x00\x00\x00";
+    //         let bytes = include_bytes!("./assets/riff_chunk.riff");
+    //         assert_eq!(bytes, expected);
+    //     }
+
+    //     {
+    //         let bytes = include_bytes!("./assets/riff_chunk.riff");
+    //         let expected = Chunk::Chunk {
+    //             four_cc: FourCC::from(*b"fmt "),
+    //             data: b"EXAMPLE_DATA".to_vec(),
+    //         };
+    //         let actual = Chunk::try_from(bytes.to_vec())?;
+    //         assert_eq!(expected, actual);
+    //     }
+
+    //     Ok(())
+    // }
 }
