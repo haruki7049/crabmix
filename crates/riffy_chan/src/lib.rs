@@ -237,7 +237,7 @@ mod chunk_tests {
         }
 
         {
-            let bytes = include_bytes!("./assets/chunk.riff");
+            let bytes = include_bytes!("./assets/list_chunk.riff");
             let expected = Chunk::List {
                 chunks: vec![
                     Chunk::Chunk {
