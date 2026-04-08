@@ -124,29 +124,20 @@ impl Chunk {
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
         let data = buffer[8..8 + size].to_vec();
 
-        if size < 8 {
-            return Err(Box::new(ChunkTryFromError::SizeMismatch));
-        }
-
         Ok(Chunk::Chunk { four_cc, data })
     }
 
     fn parse_list(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
-        dbg!("List size: {}", size);
         let mut chunks = Vec::new();
         let mut offset = 8;
 
         while offset < size {
-            dbg!("Current offset: {}", offset);
-
             let chunk = Chunk::parse_chunk(&buffer[offset..])?;
             let chunk_size = Chunk::size(&chunk);
-            dbg!("Parsed chunk size: {}", chunk_size);
 
             chunks.push(chunk);
             offset += chunk_size;
-            dbg!("New offset: {}", offset);
         }
 
         Ok(Chunk::List { chunks })
@@ -158,9 +149,9 @@ impl Chunk {
 
         let four_cc_raw = buffer[8..12].to_vec();
         let four_cc = FourCC::try_from(four_cc_raw)?;
-        let mut offset = 0;
+        let mut offset = 12;
 
-        while offset < size {
+        while offset < size + 4 {
             let chunk = Chunk::parse_chunk(&buffer[offset..])?;
             let chunk_size = Chunk::size(&chunk);
             chunks.push(chunk);
@@ -274,9 +265,18 @@ mod chunk_tests {
 
         {
             let bytes = include_bytes!("./assets/riff_chunk.riff");
-            let expected = Chunk::Chunk {
-                four_cc: FourCC::from(*b"fmt "),
-                data: b"EXAMPLE_DATA".to_vec(),
+            let expected = Chunk::Riff {
+                four_cc: FourCC::from(b"TEST"),
+                chunks: vec![
+                    Chunk::Chunk {
+                        four_cc: FourCC::from(b"fmt "),
+                        data: vec![],
+                    },
+                    Chunk::Chunk {
+                        four_cc: FourCC::from(b"data"),
+                        data: vec![],
+                    },
+                ],
             };
             let actual = Chunk::try_from(bytes.to_vec())?;
             assert_eq!(expected, actual);
