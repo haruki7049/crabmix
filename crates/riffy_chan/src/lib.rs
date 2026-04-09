@@ -298,4 +298,38 @@ mod chunk_tests {
         _ = Chunk::try_from(bytes.to_vec())?;
         Ok(())
     }
+
+    #[test]
+    fn load_10_samples_wave() -> Result<(), Box<dyn std::error::Error>> {
+        {
+            let expected =
+                b"RIFF\x38\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x14\x00\x00\x00\x01\x00\x33\x03\x69\x06\x91\x09\xb7\x0c\xc6\x0f\xd3\x12\xbc\x15\xa1\x18\x60\x1b";
+            let bytes = include_bytes!("./assets/10-samples.wav");
+            assert_eq!(bytes, expected);
+        }
+
+        {
+            let bytes = include_bytes!("./assets/10-samples.wav");
+            let expected = Chunk::Riff {
+                four_cc: FourCC::from(b"WAVE"),
+                chunks: vec![
+                    Chunk::Chunk {
+                        four_cc: FourCC::from(b"fmt "),
+                        data: vec![1, 0, 1, 0, 68, 172, 0, 0, 136, 88, 1, 0, 2, 0, 16, 0],
+                    },
+                    Chunk::Chunk {
+                        four_cc: FourCC::from(b"data"),
+                        data: vec![
+                            1, 0, 51, 3, 105, 6, 145, 9, 183, 12, 198, 15, 211, 18, 188, 21, 161,
+                            24, 96, 27,
+                        ],
+                    },
+                ],
+            };
+            let actual = Chunk::try_from(bytes.to_vec())?;
+            assert_eq!(expected, actual);
+        }
+
+        Ok(())
+    }
 }
