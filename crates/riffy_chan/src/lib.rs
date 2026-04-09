@@ -256,8 +256,8 @@ impl Chunk {
     /// Parses a `RIFF` root chunk from a byte buffer.
     ///
     /// The RIFF header occupies 12 bytes (`RIFF` + size + form-type FourCC);
-    /// the remaining bytes up to `size + 4` are parsed as a sequence of plain
-    /// data chunks.
+    /// the remaining bytes up to `size + 4` are parsed as a sequence of nested
+    /// chunks.
     fn parse_riff(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
         let mut chunks = Vec::new();
