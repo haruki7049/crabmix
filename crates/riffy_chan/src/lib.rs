@@ -162,6 +162,12 @@ impl Chunk {
         let result: Vec<u8> = self.try_into()?;
         let mut w = BufWriter::new(write);
         w.write_all(&result)?;
+
+        // Add padding byte if total data size is odd
+        if result.len() % 2 == 1 {
+            w.write_all(b"\x00")?;
+        }
+
         w.flush()?;
 
         Ok(())
