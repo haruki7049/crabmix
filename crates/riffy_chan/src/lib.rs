@@ -158,6 +158,32 @@ impl Chunk {
 }
 
 impl Chunk {
+    /// Serialise this chunk and write all bytes to `write`.
+    ///
+    /// The chunk is converted to its RIFF byte representation via
+    /// [`TryFrom<Chunk> for Vec<u8>`] and then written in full to the provided
+    /// writer.  The writer is wrapped in a [`std::io::BufWriter`] internally, so
+    /// calling this on an unbuffered sink (such as a [`std::fs::File`]) is
+    /// efficient.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialisation fails or if the write operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use riffy_chan::{Chunk, FourCC};
+    ///
+    /// let chunk = Chunk::Chunk {
+    ///     four_cc: FourCC::from(*b"data"),
+    ///     data: vec![1, 2, 3, 4],
+    /// };
+    ///
+    /// let mut buf: Vec<u8> = Vec::new();
+    /// chunk.to_write(&mut buf).expect("write succeeded");
+    /// assert_eq!(&buf[..4], b"data");
+    /// ```
     pub fn to_write<W: Write>(self, write: &mut W) -> Result<(), Box<dyn std::error::Error>> {
         let result: Vec<u8> = self.try_into()?;
         let mut w = BufWriter::new(write);
@@ -226,6 +252,15 @@ impl TryFrom<Vec<u8>> for Chunk {
     }
 }
 
+/// Parses a [`Chunk`] from a reference to raw bytes.
+///
+/// Identical to the [`TryFrom<Vec<u8>>`] implementation but accepts a
+/// borrowed `Vec<u8>` so the caller does not need to give up ownership.
+///
+/// # Errors
+///
+/// Returns an error if the bytes are malformed (e.g. truncated size field or
+/// invalid FourCC data).
 impl TryFrom<&Vec<u8>> for Chunk {
     type Error = Box<dyn std::error::Error>;
 
@@ -242,6 +277,16 @@ impl TryFrom<&Vec<u8>> for Chunk {
     }
 }
 
+/// Serialises a [`Chunk`] into its RIFF byte representation.
+///
+/// The returned bytes are a complete, self-contained RIFF chunk including the
+/// FourCC identifier, the little-endian 32-bit size field, and the payload.
+/// For [`Chunk::Riff`] chunks an extra padding byte (`0x00`) is appended when
+/// the payload size is odd, as required by the RIFF specification.
+///
+/// # Errors
+///
+/// Returns an error if computing the chunk size fails.
 impl TryFrom<Chunk> for Vec<u8> {
     type Error = Box<dyn std::error::Error>;
 
@@ -259,6 +304,10 @@ impl TryFrom<Chunk> for Vec<u8> {
 }
 
 impl Chunk {
+    /// Serialises a `LIST` chunk into its RIFF byte representation.
+    ///
+    /// Writes `LIST`, the little-endian 32-bit `size`, and then each child
+    /// chunk serialised recursively.
     fn try_from_list_chunk(
         chunks: Vec<Chunk>,
         size: u32,
@@ -276,6 +325,12 @@ impl Chunk {
         Ok(result)
     }
 
+    /// Serialises a `RIFF` root chunk into its RIFF byte representation.
+    ///
+    /// Writes `RIFF`, the little-endian 32-bit `size` (padded to an even value
+    /// when odd), the form-type `four_cc`, and then each child chunk serialised
+    /// recursively.  A trailing `0x00` padding byte is appended when the
+    /// payload size is odd.
     fn try_from_riff_chunk(
         four_cc: FourCC,
         chunks: Vec<Chunk>,
@@ -307,6 +362,10 @@ impl Chunk {
         Ok(result)
     }
 
+    /// Serialises a plain data chunk into its RIFF byte representation.
+    ///
+    /// Writes the `four_cc` identifier, the little-endian 32-bit `size`, and
+    /// then the raw `data` bytes.
     fn try_from_chunk(
         four_cc: FourCC,
         data: Vec<u8>,
