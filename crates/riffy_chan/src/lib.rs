@@ -191,23 +191,30 @@ impl Chunk {
     ///
     /// Layout: `[RIFF (4)] [size (4)] [FourCC (4)] [chunks…]`
     fn riff_chunk_size(chunks: &[Chunk]) -> Result<u32, Box<dyn std::error::Error>> {
+        const RIFF_BYTES: u32 = 4;
+        const SIZE_BYTES: u32 = 4;
         const FOUR_CC_BYTES: u32 = 4;
         let chunks_bytes: u32 = chunks
             .iter()
             .map(|chunk| chunk.size())
             .sum::<Result<u32, Box<dyn std::error::Error>>>()?;
 
-        Ok(chunks_bytes + FOUR_CC_BYTES)
+        Ok(chunks_bytes + RIFF_BYTES + FOUR_CC_BYTES + SIZE_BYTES)
     }
 
     /// Calculates the byte size of a LIST chunk.
     ///
     /// Layout: `[LIST (4)] [size (4)] [FourCC (4)] [sub-chunks…]`
     fn list_chunk_size(chunks: &[Chunk]) -> Result<u32, Box<dyn std::error::Error>> {
+        const LIST_BYTES: u32 = 4;
+        const SIZE_BYTES: u32 = 4;
         const FOUR_CC_BYTES: u32 = 4;
-        let chunks_bytes: u32 = chunks.len().try_into()?;
+        let chunks_bytes: u32 = chunks
+            .iter()
+            .map(|chunk| chunk.size())
+            .sum::<Result<u32, Box<dyn std::error::Error>>>()?;
 
-        Ok(chunks_bytes + FOUR_CC_BYTES)
+        Ok(chunks_bytes + LIST_BYTES + FOUR_CC_BYTES + SIZE_BYTES)
     }
 }
 
