@@ -1,30 +1,83 @@
 //! # riffy_chan
+//!
+//! `riffy_chan` is a library for decoding and encoding
+//! [RIFF](https://en.wikipedia.org/wiki/Resource_Interchange_File_Format)
+//! (Resource Interchange File Format) files in Rust.
+//!
+//! RIFF is a generic container format used by many well-known file types such
+//! as WAV audio and WebP images. A RIFF file is built from a tree of *chunks*,
+//! each identified by a four-character code ([`FourCC`]) and carrying either
+//! raw byte data or a list of nested chunks.
+//!
+//! ## Core types
+//!
+//! - [`FourCC`] – a four-byte identifier used to label every chunk.
+//! - [`Chunk`] – an enum representing the three kinds of RIFF chunk: a plain
+//!   data chunk, a `LIST` chunk (containing sub-chunks), and the root `RIFF`
+//!   chunk.
+//!
+//! ## Parsing example
+//!
+//! ```rust
+//! use riffy_chan::Chunk;
+//!
+//! // Raw bytes of a minimal RIFF file (e.g. read from disk with std::fs::read).
+//! let bytes: Vec<u8> =
+//!     b"RIFF\x14\x00\x00\x00TESTfmt \x00\x00\x00\x00data\x00\x00\x00\x00"
+//!         .to_vec();
+//!
+//! let chunk = Chunk::try_from(bytes).expect("valid RIFF data");
+//! ```
 
 use thiserror::Error;
 
+/// A four-character code (FourCC) used to identify RIFF chunks.
+///
+/// A `FourCC` is exactly four bytes long and is typically written as an ASCII
+/// string such as `"RIFF"`, `"LIST"`, `"fmt "`, or `"data"`.  It acts as the
+/// type tag for every chunk in a RIFF file.
+///
+/// # Examples
+///
+/// ```rust
+/// use riffy_chan::FourCC;
+///
+/// let cc = FourCC::from(*b"fmt ");
+/// let bytes: Vec<u8> = cc.into();
+/// assert_eq!(bytes, b"fmt ");
+/// ```
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct FourCC {
     inner: [u8; 4],
 }
 
+/// Converts a [`FourCC`] into its raw four-byte representation.
 impl From<FourCC> for Vec<u8> {
     fn from(value: FourCC) -> Self {
         value.inner.to_vec()
     }
 }
 
+/// Creates a [`FourCC`] from a fixed-size four-byte array.
 impl From<[u8; 4]> for FourCC {
     fn from(from: [u8; 4]) -> Self {
         Self { inner: from }
     }
 }
 
+/// Creates a [`FourCC`] from a reference to a fixed-size four-byte array.
 impl From<&[u8; 4]> for FourCC {
     fn from(from: &[u8; 4]) -> Self {
         Self { inner: *from }
     }
 }
 
+/// Attempts to create a [`FourCC`] from a `Vec<u8>`.
+///
+/// # Errors
+///
+/// Returns [`FourCCTryFromError::InvalidLength`] when the vector does not
+/// contain exactly four bytes.
 impl TryFrom<Vec<u8>> for FourCC {
     type Error = Box<dyn std::error::Error>;
 
@@ -43,15 +96,42 @@ impl TryFrom<Vec<u8>> for FourCC {
     }
 }
 
+/// Errors that can occur when converting a `Vec<u8>` into a [`FourCC`].
 #[derive(Debug, Error)]
 pub enum FourCCTryFromError {
+    /// The source vector did not contain exactly four bytes.
     #[error("Invalid length of Vec<u8>, expected 4 but actually {}", actual)]
     InvalidLength { actual: usize },
 
+    /// The source vector could not be converted into a `[u8; 4]` slice.
     #[error("Invalid slice. The received Vec<u8> is: {:?}", actual)]
     InvalidSlice { actual: Vec<u8> },
 }
 
+/// A single node in a RIFF chunk tree.
+///
+/// RIFF files are hierarchical: the file starts with a root [`Chunk::Riff`]
+/// that contains zero or more child chunks, which may themselves be
+/// [`Chunk::List`] chunks with further children.
+///
+/// # Parsing
+///
+/// Use the [`TryFrom<Vec<u8>>`] implementation to parse raw bytes:
+///
+/// ```rust
+/// use riffy_chan::{Chunk, FourCC};
+///
+/// let bytes = b"fmt \x0c\x00\x00\x00EXAMPLE_DATA".to_vec();
+/// let chunk = Chunk::try_from(bytes).unwrap();
+///
+/// assert_eq!(
+///     chunk,
+///     Chunk::Chunk {
+///         four_cc: FourCC::from(*b"fmt "),
+///         data: b"EXAMPLE_DATA".to_vec(),
+///     }
+/// );
+/// ```
 #[derive(Debug, PartialEq, Eq)]
 pub enum Chunk {
     /// A basic RIFF chunk with a FourCC identifier and data payload.
@@ -65,6 +145,8 @@ pub enum Chunk {
 }
 
 impl Chunk {
+    /// Returns the total serialised byte size of this chunk, including the
+    /// FourCC, size field, and payload.
     fn size(&self) -> usize {
         match self {
             Self::Chunk { data, .. } => Self::chunk_size(data),
@@ -73,6 +155,9 @@ impl Chunk {
         }
     }
 
+    /// Calculates the byte size of a plain data chunk.
+    ///
+    /// Layout: `[FourCC (4)] [size (4)] [data (n)]`
     fn chunk_size(data: &[u8]) -> usize {
         const FOUR_CC_BYTES: usize = 4;
         const SIZE_BYTES: usize = 4;
@@ -81,6 +166,9 @@ impl Chunk {
         data_bytes + FOUR_CC_BYTES + SIZE_BYTES
     }
 
+    /// Calculates the byte size of a RIFF root chunk.
+    ///
+    /// Layout: `[RIFF (4)] [size (4)] [FourCC (4)] [chunks…]`
     fn riff_chunk_size(chunks: &[Chunk]) -> usize {
         const RIFF_BYTES: usize = 4;
         const FOUR_CC_BYTES: usize = 4;
@@ -90,6 +178,9 @@ impl Chunk {
         chunks_bytes + RIFF_BYTES + FOUR_CC_BYTES + SIZE_BYTES
     }
 
+    /// Calculates the byte size of a LIST chunk.
+    ///
+    /// Layout: `[LIST (4)] [size (4)] [FourCC (4)] [sub-chunks…]`
     fn list_chunk_size(chunks: &[Chunk]) -> usize {
         const LIST_BYTES: usize = 4;
         const FOUR_CC_BYTES: usize = 4;
@@ -100,6 +191,17 @@ impl Chunk {
     }
 }
 
+/// Parses a [`Chunk`] from raw bytes.
+///
+/// The first four bytes are inspected to determine the chunk type:
+/// - `b"RIFF"` → [`Chunk::Riff`]
+/// - `b"LIST"` → [`Chunk::List`]
+/// - anything else → [`Chunk::Chunk`]
+///
+/// # Errors
+///
+/// Returns an error if the bytes are malformed (e.g. truncated size field or
+/// invalid FourCC data).
 impl TryFrom<Vec<u8>> for Chunk {
     type Error = Box<dyn std::error::Error>;
 
@@ -117,6 +219,10 @@ impl TryFrom<Vec<u8>> for Chunk {
 }
 
 impl Chunk {
+    /// Parses a plain data chunk from a byte buffer.
+    ///
+    /// Reads the FourCC (bytes 0–3), the little-endian size (bytes 4–7), and
+    /// then `size` bytes of payload data.
     fn parse_chunk(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
         let four_cc_raw = buffer[0..4].to_vec();
         let four_cc = FourCC::try_from(four_cc_raw)?;
@@ -127,6 +233,10 @@ impl Chunk {
         Ok(Chunk::Chunk { four_cc, data })
     }
 
+    /// Parses a `LIST` chunk from a byte buffer.
+    ///
+    /// The LIST header occupies 8 bytes (`LIST` + size); the remaining bytes
+    /// up to `size` are parsed as a sequence of plain data chunks.
     fn parse_list(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
         let mut chunks = Vec::new();
@@ -143,6 +253,11 @@ impl Chunk {
         Ok(Chunk::List { chunks })
     }
 
+    /// Parses a `RIFF` root chunk from a byte buffer.
+    ///
+    /// The RIFF header occupies 12 bytes (`RIFF` + size + form-type FourCC);
+    /// the remaining bytes up to `size + 4` are parsed as a sequence of nested
+    /// chunks.
     fn parse_riff(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
         let mut chunks = Vec::new();
@@ -162,17 +277,22 @@ impl Chunk {
     }
 }
 
+/// Errors that can occur when converting raw bytes into a [`Chunk`].
 #[derive(Debug, Error)]
 pub enum ChunkTryFromError {
+    /// The buffer did not contain a FourCC identifier.
     #[error("There is not a FourCC data")]
     NoFourCC,
 
+    /// The buffer did not conform to the expected RIFF chunk layout.
     #[error("Invalid format")]
     InvalidFormat,
 
+    /// The FourCC identifier was not recognised.
     #[error("Invalid Id")]
     InvalidId,
 
+    /// The size field in the chunk header does not match the actual data length.
     #[error("Size mismatch between size signature and actual data")]
     SizeMismatch,
 }
