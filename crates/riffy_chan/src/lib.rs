@@ -29,8 +29,7 @@
 //! let chunk = Chunk::try_from(bytes).expect("valid RIFF data");
 //! ```
 
-use std::io::{BufReader, Read};
-
+use std::io::{BufReader, BufWriter, Read, Write};
 use thiserror::Error;
 
 /// A four-character code (FourCC) used to identify RIFF chunks.
@@ -48,7 +47,7 @@ use thiserror::Error;
 /// let bytes: Vec<u8> = cc.into();
 /// assert_eq!(bytes, b"fmt ");
 /// ```
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct FourCC {
     inner: [u8; 4],
 }
@@ -134,7 +133,7 @@ pub enum FourCCTryFromError {
 ///     }
 /// );
 /// ```
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Chunk {
     /// A basic RIFF chunk with a FourCC identifier and data payload.
     Chunk { four_cc: FourCC, data: Vec<u8> },
@@ -159,9 +158,20 @@ impl Chunk {
 }
 
 impl Chunk {
+    pub fn to_write<W: Write>(self, write: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+        let result: Vec<u8> = self.try_into()?;
+        let mut w = BufWriter::new(write);
+        w.write_all(&result)?;
+        w.flush()?;
+
+        Ok(())
+    }
+}
+
+impl Chunk {
     /// Returns the total serialised byte size of this chunk, including the
     /// FourCC, size field, and payload.
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> Result<u32, Box<dyn std::error::Error>> {
         match self {
             Self::Chunk { data, .. } => Self::chunk_size(data),
             Self::Riff { chunks, .. } => Self::riff_chunk_size(chunks),
@@ -172,36 +182,32 @@ impl Chunk {
     /// Calculates the byte size of a plain data chunk.
     ///
     /// Layout: `[FourCC (4)] [size (4)] [data (n)]`
-    fn chunk_size(data: &[u8]) -> usize {
-        const FOUR_CC_BYTES: usize = 4;
-        const SIZE_BYTES: usize = 4;
-        let data_bytes: usize = data.len();
-
-        data_bytes + FOUR_CC_BYTES + SIZE_BYTES
+    fn chunk_size(data: &[u8]) -> Result<u32, Box<dyn std::error::Error>> {
+        let data_bytes: u32 = data.len().try_into()?;
+        Ok(data_bytes)
     }
 
     /// Calculates the byte size of a RIFF root chunk.
     ///
     /// Layout: `[RIFF (4)] [size (4)] [FourCC (4)] [chunks…]`
-    fn riff_chunk_size(chunks: &[Chunk]) -> usize {
-        const RIFF_BYTES: usize = 4;
-        const FOUR_CC_BYTES: usize = 4;
-        const SIZE_BYTES: usize = 4;
-        let chunks_bytes = chunks.len();
+    fn riff_chunk_size(chunks: &[Chunk]) -> Result<u32, Box<dyn std::error::Error>> {
+        const FOUR_CC_BYTES: u32 = 4;
+        let chunks_bytes: u32 = chunks
+            .iter()
+            .map(|chunk| chunk.size())
+            .sum::<Result<u32, Box<dyn std::error::Error>>>()?;
 
-        chunks_bytes + RIFF_BYTES + FOUR_CC_BYTES + SIZE_BYTES
+        Ok(chunks_bytes + FOUR_CC_BYTES)
     }
 
     /// Calculates the byte size of a LIST chunk.
     ///
     /// Layout: `[LIST (4)] [size (4)] [FourCC (4)] [sub-chunks…]`
-    fn list_chunk_size(chunks: &[Chunk]) -> usize {
-        const LIST_BYTES: usize = 4;
-        const FOUR_CC_BYTES: usize = 4;
-        const SIZE_BYTES: usize = 4;
-        let chunks_bytes = chunks.iter().map(Self::size).count();
+    fn list_chunk_size(chunks: &[Chunk]) -> Result<u32, Box<dyn std::error::Error>> {
+        const FOUR_CC_BYTES: u32 = 4;
+        let chunks_bytes: u32 = chunks.len().try_into()?;
 
-        chunks_bytes + LIST_BYTES + FOUR_CC_BYTES + SIZE_BYTES
+        Ok(chunks_bytes + FOUR_CC_BYTES)
     }
 }
 
@@ -232,6 +238,97 @@ impl TryFrom<Vec<u8>> for Chunk {
     }
 }
 
+impl TryFrom<&Vec<u8>> for Chunk {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &Vec<u8>) -> Result<Self, Self::Error> {
+        let riff = b"RIFF";
+        let list = b"LIST";
+        let four_cc_raw = value[0..4].to_vec();
+
+        match four_cc_raw {
+            r if r == riff => Self::parse_riff(value),
+            l if l == list => Self::parse_list(value),
+            _ => Self::parse_chunk(value),
+        }
+    }
+}
+
+impl TryFrom<Chunk> for Vec<u8> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: Chunk) -> Result<Self, Self::Error> {
+        let size: u32 = value.size()?;
+
+        match value {
+            Chunk::List { chunks } => Chunk::try_from_list_chunk(chunks, size),
+            Chunk::Riff { four_cc, chunks } => Chunk::try_from_riff_chunk(four_cc, chunks, size),
+            Chunk::Chunk { four_cc, data } => Ok(Chunk::try_from_chunk(four_cc, data, size)),
+        }
+    }
+}
+
+impl Chunk {
+    fn try_from_list_chunk(
+        chunks: Vec<Chunk>,
+        size: u32,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        const LIST_BYTES: &[u8; 4] = b"LIST";
+        let size_raw: Vec<u8> = size.to_le_bytes().to_vec(); // RIFF chunk's size
+        let children_chunks_raw: Vec<u8> = chunks
+            .iter()
+            .map(|chunk: &Chunk| {
+                let bytes: Vec<u8> = chunk.clone().try_into()?;
+                Ok(bytes)
+            })
+            .collect::<Result<Vec<Vec<u8>>, Box<dyn std::error::Error>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        let result: Vec<u8> = [LIST_BYTES.to_vec(), size_raw, children_chunks_raw].concat();
+        Ok(result)
+    }
+
+    fn try_from_riff_chunk(
+        four_cc: FourCC,
+        chunks: Vec<Chunk>,
+        size: u32,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        const RIFF_BYTES: &[u8; 4] = b"RIFF";
+        let four_cc_raw: Vec<u8> = four_cc.into();
+        let size_raw: Vec<u8> = size.to_le_bytes().to_vec(); // RIFF chunk's size
+        let children_chunks_raw: Vec<u8> = chunks
+            .iter()
+            .map(|chunk: &Chunk| {
+                let bytes: Vec<u8> = chunk.clone().try_into()?;
+                Ok(bytes)
+            })
+            .collect::<Result<Vec<Vec<u8>>, Box<dyn std::error::Error>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        let result: Vec<u8> = [
+            RIFF_BYTES.to_vec(),
+            size_raw,
+            four_cc_raw,
+            children_chunks_raw,
+        ]
+        .concat();
+
+        Ok(result)
+    }
+
+    fn try_from_chunk(four_cc: FourCC, data: Vec<u8>, size: u32) -> Vec<u8> {
+        let four_cc_raw: Vec<u8> = four_cc.into();
+        let size_raw: Vec<u8> = size.to_le_bytes().to_vec();
+        let result: Vec<u8> = [four_cc_raw, size_raw, data].concat();
+
+        result
+    }
+}
+
 impl Chunk {
     /// Parses a plain data chunk from a byte buffer.
     ///
@@ -252,13 +349,13 @@ impl Chunk {
     /// The LIST header occupies 8 bytes (`LIST` + size); the remaining bytes
     /// up to `size` are parsed as a sequence of plain data chunks.
     fn parse_list(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
-        let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
+        let size: u32 = u32::from_le_bytes(buffer[4..8].try_into()?);
         let mut chunks = Vec::new();
-        let mut offset = 8;
+        let mut offset: u32 = 8;
 
         while offset < size {
-            let chunk = Chunk::parse_chunk(&buffer[offset..])?;
-            let chunk_size = Chunk::size(&chunk);
+            let chunk = Chunk::parse_chunk(&buffer[offset as usize..])?;
+            let chunk_size = Chunk::size(&chunk)?;
 
             chunks.push(chunk);
             offset += chunk_size;
@@ -273,16 +370,16 @@ impl Chunk {
     /// the remaining bytes up to `size + 4` are parsed as a sequence of nested
     /// chunks.
     fn parse_riff(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
-        let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
+        let size = u32::from_le_bytes(buffer[4..8].try_into()?);
         let mut chunks = Vec::new();
 
         let four_cc_raw = buffer[8..12].to_vec();
         let four_cc = FourCC::try_from(four_cc_raw)?;
-        let mut offset = 12;
+        let mut offset: u32 = 12;
 
         while offset < size + 4 {
-            let chunk = Chunk::parse_chunk(&buffer[offset..])?;
-            let chunk_size = Chunk::size(&chunk);
+            let chunk = Chunk::parse_chunk(&buffer[offset as usize..])?;
+            let chunk_size = Chunk::size(&chunk)?;
             chunks.push(chunk);
             offset += chunk_size;
         }
@@ -337,6 +434,10 @@ mod four_cc_tests {
 #[cfg(test)]
 mod chunk_tests {
     use super::{Chunk, FourCC};
+    use std::{
+        fs::File,
+        io::{BufReader, Read, Seek},
+    };
 
     #[test]
     fn load_chunk() -> Result<(), Box<dyn std::error::Error>> {
@@ -469,8 +570,6 @@ mod chunk_tests {
 
     #[test]
     fn from_reader() -> Result<(), Box<dyn std::error::Error>> {
-        use std::fs::File;
-
         let path = std::env::current_dir()?;
         eprintln!("The current directory is: {:?}", path);
 
@@ -493,6 +592,33 @@ mod chunk_tests {
         let f = File::open("src/assets/10-samples.wav")?;
         let actual = Chunk::from_reader(f)?;
         assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn to_write() -> Result<(), Box<dyn std::error::Error>> {
+        let expected = include_bytes!("./assets/10-samples.wav").to_vec();
+
+        // Writing to the file
+        let mut f: File = tempfile::tempfile()?;
+        let chunk = Chunk::try_from(&expected)?;
+        chunk.to_write(&mut f)?;
+
+        // Seek back to the start of the file before reading
+        f.rewind()?;
+
+        let mut reader = BufReader::new(f);
+        let mut buf: Vec<u8> = Vec::new();
+        reader.read_to_end(&mut buf)?;
+
+        dbg!(&expected);
+        dbg!(&buf);
+
+        assert_eq!(expected.len(), buf.len());
+        for i in 0..buf.len() {
+            assert_eq!(expected[i], buf[i]);
+        }
 
         Ok(())
     }
