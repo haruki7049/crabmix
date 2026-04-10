@@ -183,8 +183,11 @@ impl Chunk {
     ///
     /// Layout: `[FourCC (4)] [size (4)] [data (n)]`
     fn chunk_size(data: &[u8]) -> Result<u32, Box<dyn std::error::Error>> {
+        const FOUR_CC_BYTES: u32 = 4;
+        const SIZE_BYTES: u32 = 4;
         let data_bytes: u32 = data.len().try_into()?;
-        Ok(data_bytes)
+
+        Ok(FOUR_CC_BYTES + SIZE_BYTES + data_bytes)
     }
 
     /// Calculates the byte size of a RIFF root chunk.
@@ -345,6 +348,8 @@ impl Chunk {
         let four_cc_raw = buffer[0..4].to_vec();
         let four_cc = FourCC::try_from(four_cc_raw)?;
 
+        dbg!(&buffer[4..8]);
+
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
         let data = buffer[8..8 + size].to_vec();
 
@@ -377,7 +382,7 @@ impl Chunk {
     /// the remaining bytes up to `size + 4` are parsed as a sequence of nested
     /// chunks.
     fn parse_riff(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
-        let size = u32::from_le_bytes(buffer[4..8].try_into()?);
+        let size: u32 = u32::from_le_bytes(buffer[4..8].try_into()?);
         let mut chunks = Vec::new();
 
         let four_cc_raw = buffer[8..12].to_vec();
