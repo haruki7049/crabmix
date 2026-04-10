@@ -272,7 +272,7 @@ impl TryFrom<Chunk> for Vec<u8> {
         match value {
             Chunk::List { chunks } => Chunk::try_from_list_chunk(chunks, size),
             Chunk::Riff { four_cc, chunks } => Chunk::try_from_riff_chunk(four_cc, chunks, size),
-            Chunk::Chunk { four_cc, data } => Ok(Chunk::try_from_chunk(four_cc, data, size)),
+            Chunk::Chunk { four_cc, data } => Ok(Chunk::try_from_chunk(four_cc, data, size)?),
         }
     }
 }
@@ -305,8 +305,12 @@ impl Chunk {
         size: u32,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         const RIFF_BYTES: &[u8; 4] = b"RIFF";
+        let riff_bytes_len: u32 = RIFF_BYTES.len().try_into()?;
+        let size_bytes_len: u32 = 4;
+
+        let size_written_for_riff = size - riff_bytes_len - size_bytes_len;
         let four_cc_raw: Vec<u8> = four_cc.into();
-        let size_raw: Vec<u8> = size.to_le_bytes().to_vec(); // RIFF chunk's size
+        let size_raw: Vec<u8> = size_written_for_riff.to_le_bytes().to_vec(); // RIFF chunk's size
         let children_chunks_raw: Vec<u8> = chunks
             .iter()
             .map(|chunk: &Chunk| {
@@ -329,12 +333,21 @@ impl Chunk {
         Ok(result)
     }
 
-    fn try_from_chunk(four_cc: FourCC, data: Vec<u8>, size: u32) -> Vec<u8> {
+    fn try_from_chunk(
+        four_cc: FourCC,
+        data: Vec<u8>,
+        size: u32,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        const RIFF_BYTES: &[u8; 4] = b"RIFF";
+        let riff_bytes_len: u32 = RIFF_BYTES.len().try_into()?;
+        let size_bytes_len: u32 = 4;
+
+        let size_written_for_riff = size - riff_bytes_len - size_bytes_len;
         let four_cc_raw: Vec<u8> = four_cc.into();
-        let size_raw: Vec<u8> = size.to_le_bytes().to_vec();
+        let size_raw: Vec<u8> = size_written_for_riff.to_le_bytes().to_vec();
 
         let result: Vec<u8> = [four_cc_raw, size_raw, data].concat();
-        result
+        Ok(result)
     }
 }
 
@@ -620,12 +633,12 @@ mod chunk_tests {
 
         assert_eq!(expected.len(), buf.len());
         for i in 0..buf.len() {
-            if i == 16 {
+            if i == 4 {
                 dbg!(&expected);
                 dbg!(&buf);
             }
 
-            assert_eq!(expected[i], buf[i]);
+            assert_eq!(expected[i], buf[i], "i = {}", i);
         }
 
         Ok(())
