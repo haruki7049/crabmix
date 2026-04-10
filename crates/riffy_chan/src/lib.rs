@@ -651,7 +651,7 @@ mod chunk_tests {
             "./src/assets/list_chunk.riff",
             "./src/assets/riff_chunk.riff",
             "./src/assets/10-samples.wav",
-            // "./src/assets/test_DJ.webp",
+            "./src/assets/test_DJ.webp",
         ];
 
         for path in test_files {
@@ -686,7 +686,7 @@ mod chunk_tests {
             "./src/assets/list_chunk.riff",
             "./src/assets/riff_chunk.riff",
             "./src/assets/10-samples.wav",
-            // "./src/assets/test_DJ.webp",
+            "./src/assets/test_DJ.webp",
         ];
 
         for path in test_files {
