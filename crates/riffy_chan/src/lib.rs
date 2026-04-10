@@ -194,15 +194,13 @@ impl Chunk {
     ///
     /// Layout: `[RIFF (4)] [size (4)] [FourCC (4)] [chunks…]`
     fn riff_chunk_size(chunks: &[Chunk]) -> Result<u32, Box<dyn std::error::Error>> {
-        const RIFF_BYTES: u32 = 4;
-        const SIZE_BYTES: u32 = 4;
         const FOUR_CC_BYTES: u32 = 4;
         let chunks_bytes: u32 = chunks
             .iter()
             .map(|chunk| chunk.size())
             .sum::<Result<u32, Box<dyn std::error::Error>>>()?;
 
-        Ok(chunks_bytes + RIFF_BYTES + FOUR_CC_BYTES + SIZE_BYTES)
+        Ok(chunks_bytes + FOUR_CC_BYTES)
     }
 
     /// Calculates the byte size of a LIST chunk.
@@ -333,8 +331,8 @@ impl Chunk {
     fn try_from_chunk(four_cc: FourCC, data: Vec<u8>, size: u32) -> Vec<u8> {
         let four_cc_raw: Vec<u8> = four_cc.into();
         let size_raw: Vec<u8> = size.to_le_bytes().to_vec();
-        let result: Vec<u8> = [four_cc_raw, size_raw, data].concat();
 
+        let result: Vec<u8> = [four_cc_raw, size_raw, data].concat();
         result
     }
 }
@@ -347,8 +345,6 @@ impl Chunk {
     fn parse_chunk(buffer: &[u8]) -> Result<Chunk, Box<dyn std::error::Error>> {
         let four_cc_raw = buffer[0..4].to_vec();
         let four_cc = FourCC::try_from(four_cc_raw)?;
-
-        dbg!(&buffer[4..8]);
 
         let size = u32::from_le_bytes(buffer[4..8].try_into()?) as usize;
         let data = buffer[8..8 + size].to_vec();
@@ -624,11 +620,13 @@ mod chunk_tests {
         let mut buf: Vec<u8> = Vec::new();
         reader.read_to_end(&mut buf)?;
 
-        dbg!(&expected);
-        dbg!(&buf);
-
         assert_eq!(expected.len(), buf.len());
         for i in 0..buf.len() {
+            if i == 16 {
+                dbg!(&expected);
+                dbg!(&buf);
+            }
+
             assert_eq!(expected[i], buf[i]);
         }
 
