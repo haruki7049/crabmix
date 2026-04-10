@@ -162,12 +162,6 @@ impl Chunk {
         let result: Vec<u8> = self.try_into()?;
         let mut w = BufWriter::new(write);
         w.write_all(&result)?;
-
-        // Add padding byte if total data size is odd
-        if result.len() % 2 == 1 {
-            w.write_all(b"\x00")?;
-        }
-
         w.flush()?;
 
         Ok(())
@@ -254,11 +248,17 @@ impl TryFrom<Chunk> for Vec<u8> {
     fn try_from(value: Chunk) -> Result<Self, Self::Error> {
         let size: u32 = value.size()?;
 
-        match value {
-            Chunk::List { chunks } => Chunk::try_from_list_chunk(chunks, size),
-            Chunk::Riff { four_cc, chunks } => Chunk::try_from_riff_chunk(four_cc, chunks, size),
-            Chunk::Chunk { four_cc, data } => Ok(Chunk::try_from_chunk(four_cc, data, size)?),
+        let mut result = match value {
+            Chunk::List { chunks } => Chunk::try_from_list_chunk(chunks, size)?,
+            Chunk::Riff { four_cc, chunks } => Chunk::try_from_riff_chunk(four_cc, chunks, size)?,
+            Chunk::Chunk { four_cc, data } => Chunk::try_from_chunk(four_cc, data, size)?,
+        };
+        if result.len() % 2 == 1 {
+            // Add padding byte if total data size is odd
+            result.push(0x00);
         }
+
+        Ok(result)
     }
 }
 
@@ -607,7 +607,7 @@ mod chunk_tests {
             "./src/assets/list_chunk.riff",
             "./src/assets/riff_chunk.riff",
             "./src/assets/10-samples.wav",
-            // "./src/assets/test_DJ.webp",
+            "./src/assets/test_DJ.webp",
         ];
 
         for path in test_files {
@@ -625,6 +625,8 @@ mod chunk_tests {
             temp_file.read_to_end(&mut written_bytes)?;
 
             let original_bytes = std::fs::read(path)?;
+
+            assert_eq!(original_bytes.len(), written_bytes.len());
             assert_eq!(
                 original_bytes, written_bytes,
                 "Roundtrip failed for file: {}",
@@ -642,7 +644,7 @@ mod chunk_tests {
             "./src/assets/list_chunk.riff",
             "./src/assets/riff_chunk.riff",
             "./src/assets/10-samples.wav",
-            // "./src/assets/test_DJ.webp",
+            "./src/assets/test_DJ.webp",
         ];
 
         for path in test_files {
@@ -654,6 +656,7 @@ mod chunk_tests {
             // Test: TryFrom<Chunk> for Vec<u8>
             let converted_bytes: Vec<u8> = chunk.try_into()?;
 
+            assert_eq!(original_bytes.len(), converted_bytes.len());
             assert_eq!(
                 original_bytes, converted_bytes,
                 "Vec conversion failed for file: {}",
