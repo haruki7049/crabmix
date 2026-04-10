@@ -248,15 +248,11 @@ impl TryFrom<Chunk> for Vec<u8> {
     fn try_from(value: Chunk) -> Result<Self, Self::Error> {
         let size: u32 = value.size()?;
 
-        let mut result = match value {
+        let result = match value {
             Chunk::List { chunks } => Chunk::try_from_list_chunk(chunks, size)?,
             Chunk::Riff { four_cc, chunks } => Chunk::try_from_riff_chunk(four_cc, chunks, size)?,
             Chunk::Chunk { four_cc, data } => Chunk::try_from_chunk(four_cc, data, size)?,
         };
-        if result.len() % 2 == 1 {
-            // Add padding byte if total data size is odd
-            result.push(0x00);
-        }
 
         Ok(result)
     }
@@ -285,9 +281,16 @@ impl Chunk {
         chunks: Vec<Chunk>,
         size: u32,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let is_odd_size = size % 2 == 1;
         const RIFF_BYTES: &[u8; 4] = b"RIFF";
         let four_cc_raw: Vec<u8> = four_cc.into();
-        let size_raw: Vec<u8> = size.to_le_bytes().to_vec(); // RIFF chunk's size
+
+        // RIFF chunk's size
+        let size_raw: Vec<u8> = if is_odd_size {
+            (size + 1).to_le_bytes().to_vec()
+        } else {
+            size.to_le_bytes().to_vec()
+        };
 
         let mut children_raw = Vec::new();
         for chunk in chunks {
@@ -295,7 +298,12 @@ impl Chunk {
             children_raw.extend(b);
         }
 
-        let result: Vec<u8> = [RIFF_BYTES.to_vec(), size_raw, four_cc_raw, children_raw].concat();
+        let mut result: Vec<u8> =
+            [RIFF_BYTES.to_vec(), size_raw, four_cc_raw, children_raw].concat();
+        // Add padding byte if total data size is odd
+        if is_odd_size {
+            result.push(0x00);
+        }
         Ok(result)
     }
 
