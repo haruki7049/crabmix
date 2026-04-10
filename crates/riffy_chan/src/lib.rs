@@ -29,6 +29,8 @@
 //! let chunk = Chunk::try_from(bytes).expect("valid RIFF data");
 //! ```
 
+use std::io::{BufReader, Read};
+
 use thiserror::Error;
 
 /// A four-character code (FourCC) used to identify RIFF chunks.
@@ -145,9 +147,21 @@ pub enum Chunk {
 }
 
 impl Chunk {
+    /// Read bytes from a reader, and create a Chunk data.
+    pub fn from_reader<R: Read>(reader: R) -> Result<Chunk, Box<dyn std::error::Error>> {
+        let mut buf_reader = BufReader::new(reader);
+        let mut bytes: Vec<u8> = Vec::new();
+        buf_reader.read_to_end(&mut bytes)?;
+
+        let result: Chunk = Chunk::try_from(bytes)?;
+        Ok(result)
+    }
+}
+
+impl Chunk {
     /// Returns the total serialised byte size of this chunk, including the
     /// FourCC, size field, and payload.
-    fn size(&self) -> usize {
+    pub fn size(&self) -> usize {
         match self {
             Self::Chunk { data, .. } => Self::chunk_size(data),
             Self::Riff { chunks, .. } => Self::riff_chunk_size(chunks),
@@ -449,6 +463,36 @@ mod chunk_tests {
             let actual = Chunk::try_from(bytes.to_vec())?;
             assert_eq!(expected, actual);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_reader() -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs::File;
+
+        let path = std::env::current_dir()?;
+        eprintln!("The current directory is: {:?}", path);
+
+        let expected = Chunk::Riff {
+            four_cc: FourCC::from(b"WAVE"),
+            chunks: vec![
+                Chunk::Chunk {
+                    four_cc: FourCC::from(b"fmt "),
+                    data: vec![1, 0, 1, 0, 68, 172, 0, 0, 136, 88, 1, 0, 2, 0, 16, 0],
+                },
+                Chunk::Chunk {
+                    four_cc: FourCC::from(b"data"),
+                    data: vec![
+                        1, 0, 51, 3, 105, 6, 145, 9, 183, 12, 198, 15, 211, 18, 188, 21, 161, 24,
+                        96, 27,
+                    ],
+                },
+            ],
+        };
+        let f = File::open("src/assets/10-samples.wav")?;
+        let actual = Chunk::from_reader(f)?;
+        assert_eq!(expected, actual);
 
         Ok(())
     }
