@@ -216,7 +216,7 @@ impl Chunk {
             .map(|chunk| chunk.size())
             .sum::<Result<u32, Box<dyn std::error::Error>>>()?;
 
-        Ok(chunks_bytes + LIST_BYTES + FOUR_CC_BYTES + SIZE_BYTES)
+        Ok(chunks_bytes)
     }
 }
 
@@ -639,6 +639,70 @@ mod chunk_tests {
             }
 
             assert_eq!(expected[i], buf[i], "i = {}", i);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn chunk_file_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        let test_files = [
+            "./src/assets/chunk.riff",
+            "./src/assets/list_chunk.riff",
+            "./src/assets/riff_chunk.riff",
+            "./src/assets/10-samples.wav",
+            // "./src/assets/test_DJ.webp",
+        ];
+
+        for path in test_files {
+            // Test: Read from file (to_reader)
+            let file = File::open(path)?;
+            let chunk = Chunk::from_reader(file)?;
+
+            // Test: Write to temp file (to_write)
+            let mut temp_file = tempfile::tempfile()?;
+            chunk.clone().to_write(&mut temp_file)?;
+
+            // Verify: Written content matches original asset
+            temp_file.rewind()?;
+            let mut written_bytes = Vec::new();
+            temp_file.read_to_end(&mut written_bytes)?;
+
+            let original_bytes = std::fs::read(path)?;
+            assert_eq!(
+                original_bytes, written_bytes,
+                "Roundtrip failed for file: {}",
+                path
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn chunk_try_from_vec_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+        let test_files = [
+            "./src/assets/chunk.riff",
+            "./src/assets/list_chunk.riff",
+            "./src/assets/riff_chunk.riff",
+            "./src/assets/10-samples.wav",
+            // "./src/assets/test_DJ.webp",
+        ];
+
+        for path in test_files {
+            let original_bytes = std::fs::read(path)?;
+
+            // Test: TryFrom<Vec<u8>>
+            let chunk = Chunk::try_from(original_bytes.clone())?;
+
+            // Test: TryFrom<Chunk> for Vec<u8>
+            let converted_bytes: Vec<u8> = chunk.try_into()?;
+
+            assert_eq!(
+                original_bytes, converted_bytes,
+                "Vec conversion failed for file: {}",
+                path
+            );
         }
 
         Ok(())
