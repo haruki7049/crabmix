@@ -305,10 +305,10 @@ impl Chunk {
         size: u32,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         const RIFF_BYTES: &[u8; 4] = b"RIFF";
-        let riff_bytes_len: u32 = RIFF_BYTES.len().try_into()?;
-        let size_bytes_len: u32 = 4;
+        const RIFF_BYTES_LEN: u32 = 4;
+        const SIZE_BYTES_LEN: u32 = 4;
 
-        let size_written_for_riff = size - riff_bytes_len - size_bytes_len;
+        let size_written_for_riff = size - RIFF_BYTES_LEN - SIZE_BYTES_LEN;
         let four_cc_raw: Vec<u8> = four_cc.into();
         let size_raw: Vec<u8> = size_written_for_riff.to_le_bytes().to_vec(); // RIFF chunk's size
         let children_chunks_raw: Vec<u8> = chunks
