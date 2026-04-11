@@ -131,11 +131,9 @@ impl TryFrom<&[u8]> for FourCC {
     type Error = FourCCError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let slice: [u8; 4] = value
-            .try_into()
-            .map_err(|_| FourCCError::InvalidLength {
-                actual: value.len(),
-            })?;
+        let slice: [u8; 4] = value.try_into().map_err(|_| FourCCError::InvalidLength {
+            actual: value.len(),
+        })?;
         Ok(Self::from(slice))
     }
 }
@@ -289,9 +287,7 @@ impl Chunk {
                 let chunks_bytes: u32 = chunks.iter().map(|c| c.full_size()).sum();
                 chunks_bytes + FOUR_CC_LEN
             }
-            Self::List { chunks } => {
-                chunks.iter().map(|c| c.full_size()).sum()
-            }
+            Self::List { chunks } => chunks.iter().map(|c| c.full_size()).sum(),
         }
     }
 
