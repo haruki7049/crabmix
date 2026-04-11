@@ -444,7 +444,7 @@ impl Chunk {
         }
 
         let four_cc = FourCC::try_from(&buffer[0..4])?;
-        let size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]) as usize;
+        let size = u32::from_le_bytes(buffer[4..8].try_into().unwrap()) as usize;
 
         if buffer.len() < 8 + size {
             return Err(ChunkError::BufferTooShort {
@@ -466,7 +466,7 @@ impl Chunk {
             });
         }
 
-        let list_size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
+        let list_size = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
 
         let mut chunks = Vec::new();
         let mut offset: u32 = 8;
@@ -491,7 +491,7 @@ impl Chunk {
             });
         }
 
-        let riff_size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
+        let riff_size = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
         let four_cc = FourCC::try_from(&buffer[8..12])?;
 
         let mut chunks = Vec::new();
