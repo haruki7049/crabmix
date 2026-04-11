@@ -333,6 +333,10 @@ dependencies = [
 [[package]]
 name = "rustttwavvv"
 version = "0.1.0"
+dependencies = [
+ "riffy_chan",
+ "thiserror",
+]
 
 [[package]]
 name = "semver"

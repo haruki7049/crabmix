@@ -539,12 +539,12 @@ mod chunk_tests {
     fn load_chunk() -> Result<(), Box<dyn std::error::Error>> {
         {
             let expected = b"fmt \x0c\x00\x00\x00EXAMPLE_DATA";
-            let actual = include_bytes!("./assets/chunk.riff");
+            let actual = include_bytes!("../assets/chunk.riff");
             assert_eq!(expected, actual);
         }
 
         {
-            let bytes = include_bytes!("./assets/chunk.riff");
+            let bytes = include_bytes!("../assets/chunk.riff");
             let expected = Chunk::Chunk {
                 four_cc: FourCC::from(*b"fmt "),
                 data: b"EXAMPLE_DATA".to_vec(),
@@ -561,12 +561,12 @@ mod chunk_tests {
         {
             let expected =
                 b"LIST\x28\x00\x00\x00fmt \x0c\x00\x00\x00EXAMPLE_DATAfmt \x0c\x00\x00\x00EXAMPLE_DATA";
-            let bytes = include_bytes!("./assets/list_chunk.riff");
+            let bytes = include_bytes!("../assets/list_chunk.riff");
             assert_eq!(bytes, expected);
         }
 
         {
-            let bytes = include_bytes!("./assets/list_chunk.riff");
+            let bytes = include_bytes!("../assets/list_chunk.riff");
             let expected = Chunk::List {
                 chunks: vec![
                     Chunk::Chunk {
@@ -588,7 +588,7 @@ mod chunk_tests {
 
     #[test]
     fn load_riff_chunk() -> Result<(), Box<dyn std::error::Error>> {
-        let bytes = include_bytes!("./assets/riff_chunk.riff");
+        let bytes = include_bytes!("../assets/riff_chunk.riff");
 
         let expected = b"RIFF\x14\x00\x00\x00TESTfmt \x00\x00\x00\x00data\x00\x00\x00\x00";
         assert_eq!(bytes, expected);
@@ -614,14 +614,14 @@ mod chunk_tests {
 
     #[test]
     fn load_webp() -> Result<(), Box<dyn std::error::Error>> {
-        let bytes = include_bytes!("./assets/test_DJ.webp");
+        let bytes = include_bytes!("../assets/test_DJ.webp");
         _ = Chunk::try_from(bytes.to_vec())?;
         Ok(())
     }
 
     #[test]
     fn load_wave() -> Result<(), Box<dyn std::error::Error>> {
-        let bytes = include_bytes!("./assets/sinewave.wav");
+        let bytes = include_bytes!("../assets/sinewave.wav");
         _ = Chunk::try_from(bytes.to_vec())?;
         Ok(())
     }
@@ -631,12 +631,12 @@ mod chunk_tests {
         {
             let expected =
                     b"RIFF\x38\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x14\x00\x00\x00\x01\x00\x33\x03\x69\x06\x91\x09\xb7\x0c\xc6\x0f\xd3\x12\xbc\x15\xa1\x18\x60\x1b";
-            let bytes = include_bytes!("./assets/10-samples.wav");
+            let bytes = include_bytes!("../assets/10-samples.wav");
             assert_eq!(bytes, expected);
         }
 
         {
-            let bytes = include_bytes!("./assets/10-samples.wav");
+            let bytes = include_bytes!("../assets/10-samples.wav");
             let expected = Chunk::Riff {
                 four_cc: FourCC::from(b"WAVE"),
                 chunks: vec![
@@ -681,7 +681,7 @@ mod chunk_tests {
                 },
             ],
         };
-        let f = File::open("src/assets/10-samples.wav")?;
+        let f = File::open("assets/10-samples.wav")?;
         let actual = Chunk::read(f)?;
         assert_eq!(expected, actual);
 
@@ -690,7 +690,7 @@ mod chunk_tests {
 
     #[test]
     fn write() -> Result<(), Box<dyn std::error::Error>> {
-        let expected = include_bytes!("./assets/10-samples.wav").to_vec();
+        let expected = include_bytes!("../assets/10-samples.wav").to_vec();
 
         // Writing to the file
         let mut f: File = tempfile::tempfile()?;
@@ -715,11 +715,11 @@ mod chunk_tests {
     #[test]
     fn chunk_file_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let test_files = [
-            "./src/assets/chunk.riff",
-            "./src/assets/list_chunk.riff",
-            "./src/assets/riff_chunk.riff",
-            "./src/assets/10-samples.wav",
-            "./src/assets/test_DJ.webp",
+            "./assets/chunk.riff",
+            "./assets/list_chunk.riff",
+            "./assets/riff_chunk.riff",
+            "./assets/10-samples.wav",
+            "./assets/test_DJ.webp",
         ];
 
         for path in test_files {
@@ -752,11 +752,11 @@ mod chunk_tests {
     #[test]
     fn chunk_try_from_vec_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let test_files = [
-            "./src/assets/chunk.riff",
-            "./src/assets/list_chunk.riff",
-            "./src/assets/riff_chunk.riff",
-            "./src/assets/10-samples.wav",
-            "./src/assets/test_DJ.webp",
+            "./assets/chunk.riff",
+            "./assets/list_chunk.riff",
+            "./assets/riff_chunk.riff",
+            "./assets/10-samples.wav",
+            "./assets/test_DJ.webp",
         ];
 
         for path in test_files {
