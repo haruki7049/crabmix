@@ -194,7 +194,7 @@ pub enum ChunkError {
 /// use riffy_chan::{Chunk, FourCC};
 ///
 /// let bytes: &[u8] = b"fmt \x0c\x00\x00\x00EXAMPLE_DATA";
-/// let chunk = Chunk::try_from(bytes).unwrap();
+/// let chunk = Chunk::try_from(bytes).expect("valid chunk data");
 ///
 /// assert_eq!(
 ///     chunk,
@@ -444,7 +444,7 @@ impl Chunk {
         }
 
         let four_cc = FourCC::try_from(&buffer[0..4])?;
-        let size = u32::from_le_bytes(buffer[4..8].try_into().unwrap()) as usize;
+        let size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]) as usize;
 
         if buffer.len() < 8 + size {
             return Err(ChunkError::BufferTooShort {
@@ -466,7 +466,7 @@ impl Chunk {
             });
         }
 
-        let list_size = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
+        let list_size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
 
         let mut chunks = Vec::new();
         let mut offset: u32 = 8;
@@ -491,7 +491,7 @@ impl Chunk {
             });
         }
 
-        let riff_size = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
+        let riff_size = u32::from_le_bytes([buffer[4], buffer[5], buffer[6], buffer[7]]);
         let four_cc = FourCC::try_from(&buffer[8..12])?;
 
         let mut chunks = Vec::new();
