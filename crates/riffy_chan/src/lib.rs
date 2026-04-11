@@ -222,8 +222,8 @@ impl Chunk {
     /// # Errors
     ///
     /// Returns [`ChunkError`] if the I/O read fails or the bytes are malformed.
-    pub fn from_reader<R: Read>(reader: R) -> Result<Chunk, ChunkError> {
-        let mut buf_reader = BufReader::new(reader);
+    pub fn read<R: Read>(read: R) -> Result<Chunk, ChunkError> {
+        let mut buf_reader = BufReader::new(read);
         let mut bytes: Vec<u8> = Vec::new();
         buf_reader.read_to_end(&mut bytes)?;
 
@@ -257,12 +257,12 @@ impl Chunk {
     /// };
     ///
     /// let mut buf: Vec<u8> = Vec::new();
-    /// chunk.to_write(&mut buf).expect("write succeeded");
+    /// chunk.write(&mut buf).expect("write succeeded");
     /// assert_eq!(&buf[..4], b"data");
     /// ```
-    pub fn to_write<W: Write>(&self, writer: &mut W) -> Result<(), ChunkError> {
+    pub fn write<W: Write>(&self, write: &mut W) -> Result<(), ChunkError> {
         let result: Vec<u8> = self.into();
-        let mut w = BufWriter::new(writer);
+        let mut w = BufWriter::new(write);
         w.write_all(&result)?;
         w.flush()?;
         Ok(())
@@ -661,7 +661,7 @@ mod chunk_tests {
     }
 
     #[test]
-    fn from_reader() -> Result<(), Box<dyn std::error::Error>> {
+    fn read() -> Result<(), Box<dyn std::error::Error>> {
         let path = std::env::current_dir()?;
         eprintln!("The current directory is: {:?}", path);
 
@@ -682,20 +682,20 @@ mod chunk_tests {
             ],
         };
         let f = File::open("src/assets/10-samples.wav")?;
-        let actual = Chunk::from_reader(f)?;
+        let actual = Chunk::read(f)?;
         assert_eq!(expected, actual);
 
         Ok(())
     }
 
     #[test]
-    fn to_write() -> Result<(), Box<dyn std::error::Error>> {
+    fn write() -> Result<(), Box<dyn std::error::Error>> {
         let expected = include_bytes!("./assets/10-samples.wav").to_vec();
 
         // Writing to the file
         let mut f: File = tempfile::tempfile()?;
         let chunk = Chunk::try_from(&expected)?;
-        chunk.to_write(&mut f)?;
+        chunk.write(&mut f)?;
 
         // Seek back to the start of the file before reading
         f.rewind()?;
@@ -725,11 +725,11 @@ mod chunk_tests {
         for path in test_files {
             // Test: Read from file (to_reader)
             let file = File::open(path)?;
-            let chunk = Chunk::from_reader(file)?;
+            let chunk = Chunk::read(file)?;
 
-            // Test: Write to temp file (to_write)
+            // Test: Write to temp file (write)
             let mut temp_file = tempfile::tempfile()?;
-            chunk.to_write(&mut temp_file)?;
+            chunk.write(&mut temp_file)?;
 
             // Verify: Written content matches original asset
             temp_file.rewind()?;
