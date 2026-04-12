@@ -64,35 +64,56 @@ fn parse_chunk(chunks: Vec<Chunk>) -> Result<Wav, WavError> {
             let four_cc_inner = Into::<[u8; 4]>::into(four_cc);
 
             if &four_cc_inner == b"fmt " {
-                {
-                    let format_code_raw = u16::from_le_bytes(data[0..2].try_into().map_err(
-                        |err: TryFromSliceError| WavError::InvalidFormatCode {
-                            actual: data[0..2].to_vec(),
-                            inner_error: err,
-                        },
-                    )?);
-                    wav.format_code =
-                        FormatCode::new(format_code_raw).map_err(WavError::FormatCodeError)?;
-                }
-
-                {
-                    let bits = u16::from_le_bytes(data[14..16].try_into().map_err(
-                        |err: TryFromSliceError| WavError::InvalidBits {
-                            actual: data[14..16].to_vec(),
-                            inner_error: err,
-                        },
-                    )?);
-                    const SUPPORTED_BITS: [u16; 5] = [8, 16, 24, 32, 64];
-                    if SUPPORTED_BITS.contains(&bits) {
-                        wav.bits = bits;
-                    }
-                }
+                parse_format_code(&mut wav, &data)?;
+                parse_sample_rate(&mut wav, &data)?;
+                parse_bits(&mut wav, &data)?;
             } else if &four_cc_inner == b"data" {
             }
         }
     }
 
     Ok(wav)
+}
+
+fn parse_format_code(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
+    let format_code_raw =
+        u16::from_le_bytes(data[0..2].try_into().map_err(|err: TryFromSliceError| {
+            WavError::InvalidFormatCode {
+                actual: data[0..2].to_vec(),
+                inner_error: err,
+            }
+        })?);
+
+    wav.format_code = FormatCode::new(format_code_raw).map_err(WavError::FormatCodeError)?;
+    Ok(())
+}
+
+fn parse_sample_rate(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
+    let sample_rate =
+        u32::from_le_bytes(data[4..8].try_into().map_err(|err: TryFromSliceError| {
+            WavError::InvalidSampleRate {
+                actual: data[4..8].to_vec(),
+                inner_error: err,
+            }
+        })?);
+
+    wav.sample_rate = sample_rate;
+    Ok(())
+}
+
+fn parse_bits(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
+    const SUPPORTED_BITS: [u16; 5] = [8, 16, 24, 32, 64];
+    let bits = u16::from_le_bytes(data[14..16].try_into().map_err(|err: TryFromSliceError| {
+        WavError::InvalidBits {
+            actual: data[14..16].to_vec(),
+            inner_error: err,
+        }
+    })?);
+
+    if SUPPORTED_BITS.contains(&bits) {
+        wav.bits = bits;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Error)]
@@ -121,6 +142,16 @@ pub enum WavError {
         inner_error
     )]
     InvalidFormatCode {
+        actual: Vec<u8>,
+        inner_error: TryFromSliceError,
+    },
+
+    #[error(
+        "Invalid sample_rate in fmt chunk is detected. Found {:?}, and caused {}",
+        actual,
+        inner_error
+    )]
+    InvalidSampleRate {
         actual: Vec<u8>,
         inner_error: TryFromSliceError,
     },
