@@ -14,7 +14,7 @@ pub struct Wav {
     format_code: FormatCode,
     sample_rate: SampleRate,
     channels: Channels,
-    bits: u16,
+    bits: Bits,
     samples: Vec<f64>,
 }
 
@@ -49,6 +49,33 @@ impl std::ops::Deref for Channels {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
+pub enum Bits {
+    _8Bit = 8,
+
+    #[default]
+    _16Bit = 16,
+
+    _24Bit = 24,
+    _32Bit = 32,
+    _64Bit = 64,
+}
+
+impl TryFrom<u16> for Bits {
+    type Error = WavError;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            8 => Ok(Self::_8Bit),
+            16 => Ok(Self::_16Bit),
+            24 => Ok(Self::_24Bit),
+            32 => Ok(Self::_32Bit),
+            64 => Ok(Self::_64Bit),
+            _ => Err(WavError::UnsupportedBits { found_bits: value }),
+        }
     }
 }
 
@@ -169,33 +196,23 @@ fn parse_bits(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
         }
     })?);
 
-    if SUPPORTED_BITS.contains(&bits) {
-        wav.bits = bits;
-    } else {
-        return Err(WavError::UnsupportedBits { found_bits: bits });
-    }
-
+    wav.bits = bits.try_into()?;
     Ok(())
 }
 
 fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
     let sample_count = match wav.bits {
-        8 => data.len(),
-        16 => data.len() / 2,
-        24 => data.len() / 3,
-        32 => data.len() / 4,
-        64 => data.len() / 8,
-        _ => {
-            return Err(WavError::UnsupportedBits {
-                found_bits: wav.bits,
-            });
-        }
+        Bits::_8Bit => data.len(),
+        Bits::_16Bit => data.len() / 2,
+        Bits::_24Bit => data.len() / 3,
+        Bits::_32Bit => data.len() / 4,
+        Bits::_64Bit => data.len() / 8,
     };
 
     let mut samples: Vec<f64> = Vec::new();
     for i in 0..sample_count {
         match wav.bits {
-            8 => match wav.format_code {
+            Bits::_8Bit => match wav.format_code {
                 FormatCode::PCM => {
                     let value: f64 = Into::<f64>::into(data[i]) / Into::<f64>::into(u8::MAX);
                     samples.push(value)
@@ -208,7 +225,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     });
                 }
             },
-            16 => match wav.format_code {
+            Bits::_16Bit => match wav.format_code {
                 FormatCode::PCM => {
                     const BYTES_NUMBER: usize = 2; // A i16 wave data's sample takes 2
                     let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
@@ -232,7 +249,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     });
                 }
             },
-            24 => match wav.format_code {
+            Bits::_24Bit => match wav.format_code {
                 FormatCode::PCM => {
                     const BYTES_NUMBER: usize = 3; // A i24 wave data's sample takes 3
                     let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
@@ -257,7 +274,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     });
                 }
             },
-            32 => match wav.format_code {
+            Bits::_32Bit => match wav.format_code {
                 FormatCode::PCM => {
                     const BYTES_NUMBER: usize = 4; // A i24 wave data's sample takes 3
                     let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
@@ -289,7 +306,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     samples.push(value);
                 }
             },
-            64 => match wav.format_code {
+            Bits::_64Bit => match wav.format_code {
                 FormatCode::PCM => {
                     return Err(WavError::UnsupportedFormatCode {
                         bits: wav.bits,
@@ -312,11 +329,6 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     samples.push(value);
                 }
             },
-            _ => {
-                return Err(WavError::UnsupportedBits {
-                    found_bits: wav.bits,
-                });
-            }
         }
     }
 
@@ -394,10 +406,10 @@ pub enum WavError {
     },
 
     #[error(
-        "Unsupported FormatCode is detected. It must be in range of {expected:?}, found {format_code:?} and bits: {bits}"
+        "Unsupported FormatCode is detected. It must be in range of {expected:?}, found {format_code:?} and bits: {bits:?}"
     )]
     UnsupportedFormatCode {
-        bits: u16,
+        bits: Bits,
         format_code: FormatCode,
         expected: Vec<FormatCode>,
     },
@@ -439,7 +451,7 @@ mod wav_tests {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
             channels: 1.into(),
-            bits: 8,
+            bits: 8.try_into()?,
             samples: vec![
                 0.5019607843137255,
                 0.5137254901960784,
@@ -466,7 +478,7 @@ mod wav_tests {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
             channels: 1.into(),
-            bits: 16,
+            bits: 16.try_into()?,
             samples: vec![
                 0.0,
                 0.025055696279793694,
@@ -493,7 +505,7 @@ mod wav_tests {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
             channels: 1.into(),
-            bits: 24,
+            bits: 24.try_into()?,
             samples: vec![
                 0.0,
                 0.02505934537164514,
@@ -520,7 +532,7 @@ mod wav_tests {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
             channels: 1.into(),
-            bits: 32,
+            bits: 32.try_into()?,
             samples: vec![
                 0.0,
                 0.025059329357491493,
@@ -547,7 +559,7 @@ mod wav_tests {
             format_code: FormatCode::IEEEFloat,
             sample_rate: 44100.into(),
             channels: 1.into(),
-            bits: 32,
+            bits: 32.try_into()?,
             samples: vec![
                 0.0,
                 0.025059329345822334,
@@ -574,7 +586,7 @@ mod wav_tests {
             format_code: FormatCode::IEEEFloat,
             sample_rate: 44100.into(),
             channels: 1.into(),
-            bits: 64,
+            bits: 64.try_into()?,
             samples: vec![
                 0.0,
                 0.025059329345822334,
