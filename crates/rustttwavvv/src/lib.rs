@@ -1,5 +1,7 @@
 //! # rustttwavvv
 
+use i24::I24;
+use num_traits::cast::ToPrimitive;
 use riffy_chan::{Chunk, FourCC};
 use std::{array::TryFromSliceError, io::Read};
 use thiserror::Error;
@@ -181,6 +183,30 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     });
                 }
             },
+            24 => match wav.format_code {
+                FormatCode::PCM => {
+                    const BYTES_NUMBER: usize = 3; // A i24 wave data's sample takes 3
+                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
+                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
+                    let value_raw = I24::from_le_bytes(values[0..3].try_into().map_err(|err| {
+                        WavError::InvalidSample {
+                            actual: values,
+                            inner_error: err,
+                        }
+                    })?);
+                    let value: f64 = (value_raw / I24::MAX)
+                        .to_f64()
+                        .ok_or(WavError::I24Error(value_raw))?;
+                    samples[i] = value;
+                }
+                _ => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code.clone(),
+                        expected: vec![FormatCode::PCM],
+                    });
+                }
+            },
             _ => {
                 return Err(WavError::UnsupportedBits {
                     found_bits: wav.bits,
@@ -199,6 +225,9 @@ pub enum WavError {
 
     #[error("FormatCode parse error")]
     FormatCodeError(FormatCodeError),
+
+    #[error("I24 parse error from i24 crate when parsing from I24 to f64")]
+    I24Error(I24),
 
     #[error(
         "Invalid chunk is detected. expected RIFF Chunk but found {:?}",
