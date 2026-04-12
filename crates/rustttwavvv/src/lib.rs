@@ -6,7 +6,9 @@ use riffy_chan::{Chunk, FourCC};
 use std::{
     array::TryFromSliceError,
     io::{Read, Write},
+    sync::LazyLock,
 };
+use strum::{EnumIter, IntoEnumIterator};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -52,7 +54,7 @@ impl std::ops::Deref for Channels {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, EnumIter)]
 pub enum Bits {
     _8Bit = 8,
 
@@ -63,6 +65,8 @@ pub enum Bits {
     _32Bit = 32,
     _64Bit = 64,
 }
+
+static SUPPORTED_BITS: LazyLock<Vec<Bits>> = LazyLock::new(|| Bits::iter().collect());
 
 impl TryFrom<u16> for Bits {
     type Error = WavError;
@@ -101,8 +105,6 @@ pub enum FormatCodeError {
     #[error("Invalid Code for FormatCode. found {}", actual)]
     InvalidCode { actual: u16 },
 }
-
-const SUPPORTED_BITS: [u16; 5] = [8, 16, 24, 32, 64];
 
 impl Wav {
     pub fn read<R: Read>(read: R) -> Result<Wav, WavError> {
