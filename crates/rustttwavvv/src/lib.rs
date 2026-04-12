@@ -36,6 +36,8 @@ pub enum FormatCodeError {
     InvalidCode { actual: u16 },
 }
 
+const SUPPORTED_BITS: [u16; 5] = [8, 16, 24, 32, 64];
+
 impl Wav {
     pub fn read<R: Read>(read: R) -> Result<Wav, WavError> {
         // Parse buf to RIFF Chunk
@@ -66,8 +68,10 @@ fn parse_chunk(chunks: Vec<Chunk>) -> Result<Wav, WavError> {
             if &four_cc_inner == b"fmt " {
                 parse_format_code(&mut wav, &data)?;
                 parse_sample_rate(&mut wav, &data)?;
+                parse_channels(&mut wav, &data)?;
                 parse_bits(&mut wav, &data)?;
             } else if &four_cc_inner == b"data" {
+                parse_samples(&mut wav, &data)?;
             }
         }
     }
@@ -101,8 +105,20 @@ fn parse_sample_rate(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
     Ok(())
 }
 
+fn parse_channels(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
+    let channels =
+        u16::from_le_bytes(data[2..4].try_into().map_err(|err: TryFromSliceError| {
+            WavError::InvalidChannels {
+                actual: data[2..4].to_vec(),
+                inner_error: err,
+            }
+        })?);
+
+    wav.channels = channels;
+    Ok(())
+}
+
 fn parse_bits(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
-    const SUPPORTED_BITS: [u16; 5] = [8, 16, 24, 32, 64];
     let bits = u16::from_le_bytes(data[14..16].try_into().map_err(|err: TryFromSliceError| {
         WavError::InvalidBits {
             actual: data[14..16].to_vec(),
@@ -112,8 +128,68 @@ fn parse_bits(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
 
     if SUPPORTED_BITS.contains(&bits) {
         wav.bits = bits;
+    } else {
+        return Err(WavError::UnsupportedBits { found_bits: bits });
     }
+
     Ok(())
+}
+
+fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
+    let sample_count = match wav.bits {
+        8 => data.len(),
+        16 => data.len() / 2,
+        24 => data.len() / 3,
+        32 => data.len() / 4,
+        64 => data.len() / 8,
+        _ => {
+            return Err(WavError::UnsupportedBits {
+                found_bits: wav.bits,
+            });
+        }
+    };
+
+    let mut samples: Vec<f64> = Vec::with_capacity(sample_count);
+    for i in 0..samples.len() {
+        match wav.bits {
+            8 => match wav.format_code {
+                FormatCode::PCM => {
+                    let value: f64 = (data[i] / u8::MAX).into();
+                    samples[i] = value;
+                }
+                _ => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code.clone(),
+                        expected: vec![FormatCode::PCM],
+                    });
+                }
+            },
+            16 => match wav.format_code {
+                FormatCode::PCM => {
+                    const BYTES_NUMBER: usize = 2; // A i16 wave data's sample takes 2
+                    let value_raw =
+                        i16::from_le_bytes([data[i * BYTES_NUMBER], data[(i + 1) * BYTES_NUMBER]]);
+                    let value: f64 = (value_raw / i16::MAX).into();
+                    samples[i] = value;
+                }
+                _ => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code.clone(),
+                        expected: vec![FormatCode::PCM],
+                    });
+                }
+            },
+            _ => {
+                return Err(WavError::UnsupportedBits {
+                    found_bits: wav.bits,
+                });
+            }
+        }
+    }
+
+    todo!()
 }
 
 #[derive(Debug, Error)]
@@ -157,6 +233,16 @@ pub enum WavError {
     },
 
     #[error(
+        "Invalid channels in fmt chunk is detected. Found {:?}, and caused {}",
+        actual,
+        inner_error
+    )]
+    InvalidChannels {
+        actual: Vec<u8>,
+        inner_error: TryFromSliceError,
+    },
+
+    #[error(
         "Invalid bits in fmt chunk is detected. Found {:?}, and caused {}",
         actual,
         inner_error
@@ -165,6 +251,26 @@ pub enum WavError {
         actual: Vec<u8>,
         inner_error: TryFromSliceError,
     },
+
+    #[error("Invalid sample in data chunk is detected. Found {actual:?}, and caused {inner_error}")]
+    InvalidSample {
+        actual: Vec<u8>,
+        inner_error: TryFromSliceError,
+    },
+
+    #[error(
+        "Unsupported FormatCode is detected. It must be in range of {expected:?}, found {format_code:?} and bits: {bits}"
+    )]
+    UnsupportedFormatCode {
+        bits: u16,
+        format_code: FormatCode,
+        expected: Vec<FormatCode>,
+    },
+
+    #[error(
+        "Unsupported bits parameter is detected. It must be in range of {SUPPORTED_BITS:?}, found {found_bits}"
+    )]
+    UnsupportedBits { found_bits: u16 },
 }
 
 #[cfg(test)]
