@@ -382,6 +382,7 @@ dependencies = [
  "i24",
  "num-traits",
  "riffy_chan",
+ "tempfile",
  "thiserror",
 ]
 

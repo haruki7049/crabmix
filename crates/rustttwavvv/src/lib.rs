@@ -3,7 +3,10 @@
 use i24::I24;
 use num_traits::cast::ToPrimitive;
 use riffy_chan::{Chunk, FourCC};
-use std::{array::TryFromSliceError, io::Read};
+use std::{
+    array::TryFromSliceError,
+    io::{Read, Write},
+};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -57,6 +60,10 @@ impl Wav {
 
         let wav: Wav = parse_chunk(chunks)?;
         Ok(wav)
+    }
+
+    pub fn write<W: Write>(&self, write: W) -> Result<Wav, WavError> {
+        todo!()
     }
 }
 
@@ -370,12 +377,24 @@ pub enum WavError {
 #[cfg(test)]
 mod wav_tests {
     use super::{FormatCode, Wav};
+    use std::io::{Read, Seek};
 
     fn read(filepath: &str, expected: &Wav) -> Result<(), Box<dyn std::error::Error>> {
-        let file = std::fs::File::open(filepath)?;
+        let mut file = std::fs::File::open(filepath)?;
         let actual: &Wav = &Wav::read(file)?;
-        assert_eq!(expected, actual);
 
+        assert_eq!(expected, actual);
+        Ok(())
+    }
+
+    fn write(wav: &Wav, expected: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = tempfile::tempfile()?;
+        wav.write(&mut file)?;
+        file.rewind()?;
+        let mut written_bytes: Vec<u8> = Vec::new();
+        file.read_to_end(&mut written_bytes)?;
+
+        assert_eq!(expected, written_bytes);
         Ok(())
     }
 
@@ -402,6 +421,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
+        write(&expected, b"")?;
         Ok(())
     }
 
@@ -428,6 +448,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
+        write(&expected, b"")?;
         Ok(())
     }
 
@@ -454,6 +475,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
+        write(&expected, b"")?;
         Ok(())
     }
 
@@ -480,6 +502,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
+        write(&expected, b"")?;
         Ok(())
     }
 
@@ -506,6 +529,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
+        write(&expected, b"")?;
         Ok(())
     }
 
@@ -532,6 +556,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
+        write(&expected, b"")?;
         Ok(())
     }
 }
