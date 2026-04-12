@@ -1,4 +1,50 @@
 //! # rustttwavvv
+//!
+//! `rustttwavvv` is a library for reading and writing
+//! [WAV](https://en.wikipedia.org/wiki/WAV) audio files in Rust.
+//!
+//! WAV is one of the most common uncompressed audio formats, built on top of
+//! the RIFF container format. This crate handles the parsing and construction
+//! of the `fmt ` and `data` chunks, supporting multiple bit depths and format
+//! codes.
+//!
+//! ## Supported formats
+//!
+//! | Bit depth | PCM | IEEE Float |
+//! |-----------|-----|------------|
+//! | 8-bit     | ✓   |            |
+//! | 16-bit    | ✓   |            |
+//! | 24-bit    | ✓   |            |
+//! | 32-bit    | ✓   | ✓          |
+//! | 64-bit    |     | ✓          |
+//!
+//! ## Core types
+//!
+//! - [`Wav`] – the main type representing a WAV audio file in memory.
+//! - [`FormatCode`] – the audio encoding format (PCM or IEEE Float).
+//! - [`SampleRate`] – the number of samples per second (e.g. 44100).
+//! - [`Channels`] – the number of audio channels (e.g. 1 for mono, 2 for stereo).
+//! - [`Bits`] – the bit depth per sample.
+//! - [`WavError`] – errors that can occur during reading or writing.
+//!
+//! ## Reading example
+//!
+//! ```rust,no_run
+//! use rustttwavvv::Wav;
+//!
+//! let file = std::fs::File::open("audio.wav").unwrap();
+//! let wav = Wav::read(file).unwrap();
+//! ```
+//!
+//! ## Writing example
+//!
+//! ```rust,no_run
+//! use rustttwavvv::Wav;
+//!
+//! # let wav = Wav::default();
+//! let mut file = std::fs::File::create("output.wav").unwrap();
+//! wav.write(&mut file).unwrap();
+//! ```
 
 use i24::I24;
 use num_traits::{FromPrimitive, cast::ToPrimitive};
@@ -11,12 +57,25 @@ use std::{
 use strum::{EnumIter, IntoEnumIterator};
 use thiserror::Error;
 
+/// A WAV audio file represented in memory.
+///
+/// `Wav` stores the audio metadata (format code, sample rate, channels, bit
+/// depth) together with the sample data normalised to `f64` values.
+///
+/// Use [`Wav::read`] to parse a WAV file from any [`Read`]
+/// source, and [`Wav::write`] to serialise it to any
+/// [`Write`] destination.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Wav {
+    /// The audio encoding format (e.g. PCM or IEEE Float).
     format_code: FormatCode,
+    /// The number of samples per second (e.g. 44100 Hz).
     sample_rate: SampleRate,
+    /// The number of audio channels (e.g. 1 for mono, 2 for stereo).
     channels: Channels,
+    /// The bit depth per sample (e.g. 16-bit, 24-bit).
     bits: Bits,
+    /// The audio sample data, normalised to `f64` values.
     samples: Vec<f64>,
 }
 
@@ -179,6 +238,10 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
     Ok(result)
 }
 
+/// The sample rate of a WAV file, in samples per second.
+///
+/// Common values include 44100 (CD quality), 48000 (DVD/broadcast), and
+/// 96000 (high-resolution audio).
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct SampleRate(u32);
 
@@ -196,6 +259,9 @@ impl std::ops::Deref for SampleRate {
     }
 }
 
+/// The number of audio channels in a WAV file.
+///
+/// Typical values are 1 (mono) and 2 (stereo).
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Channels(u16);
 
@@ -213,15 +279,34 @@ impl std::ops::Deref for Channels {
     }
 }
 
+/// The bit depth of each audio sample.
+///
+/// The bit depth determines the resolution of each sample and, together with
+/// the [`FormatCode`], determines how samples are encoded in the `data` chunk.
+///
+/// # Variants
+///
+/// | Variant   | Supported format codes |
+/// |-----------|------------------------|
+/// | `_8Bit`   | PCM                    |
+/// | `_16Bit`  | PCM                    |
+/// | `_24Bit`  | PCM                    |
+/// | `_32Bit`  | PCM, IEEE Float        |
+/// | `_64Bit`  | IEEE Float             |
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Default, EnumIter)]
 pub enum Bits {
+    /// 8-bit samples (unsigned, PCM only).
     _8Bit = 8,
 
+    /// 16-bit samples (signed, PCM only). This is the default.
     #[default]
     _16Bit = 16,
 
+    /// 24-bit samples (signed, PCM only).
     _24Bit = 24,
+    /// 32-bit samples (PCM or IEEE Float).
     _32Bit = 32,
+    /// 64-bit samples (IEEE Float only).
     _64Bit = 64,
 }
 
@@ -242,10 +327,16 @@ impl TryFrom<u16> for Bits {
     }
 }
 
+/// The audio encoding format stored in the WAV `fmt ` chunk.
+///
+/// WAV files support several format codes, but this crate currently handles
+/// the two most common ones: uncompressed PCM and IEEE 754 floating-point.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum FormatCode {
+    /// Pulse-Code Modulation – uncompressed integer samples.
     #[default]
     PCM = 1,
+    /// IEEE 754 floating-point samples.
     IEEEFloat = 3,
 }
 
@@ -261,13 +352,25 @@ impl TryFrom<u16> for FormatCode {
     }
 }
 
+/// Errors that can occur when converting a raw `u16` value to a [`FormatCode`].
 #[derive(Debug, Error)]
 pub enum FormatCodeError {
+    /// The raw code does not correspond to any known format code.
     #[error("Invalid Code for FormatCode. found {}", actual)]
     InvalidCode { actual: u16 },
 }
 
 impl Wav {
+    /// Reads and parses a WAV file from the given reader.
+    ///
+    /// The reader is consumed to parse the underlying RIFF structure and
+    /// extract the `fmt ` and `data` chunks. Sample values are normalised to
+    /// `f64`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WavError`] if the data is not a valid RIFF/WAV file, or if
+    /// the format code or bit depth is unsupported.
     pub fn read<R: Read>(read: R) -> Result<Wav, WavError> {
         // Parse buf to RIFF Chunk
         let root_chunk: Chunk = Chunk::read(read)?;
@@ -286,6 +389,15 @@ impl Wav {
         Ok(wav)
     }
 
+    /// Writes this WAV file to the given writer.
+    ///
+    /// The audio data is serialised as a valid RIFF/WAV byte stream that can
+    /// be read back by [`Wav::read`] or any standard WAV player.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WavError`] if the combination of format code and bit depth
+    /// is unsupported, or if an I/O error occurs while writing.
     pub fn write<W: Write>(&self, write: &mut W) -> Result<(), WavError> {
         let chunk: Chunk = self.try_into()?;
         chunk.write(write)?;
@@ -503,29 +615,37 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
     Ok(())
 }
 
+/// Errors that can occur when reading or writing a WAV file.
 #[derive(Debug, Error)]
 pub enum WavError {
+    /// An error propagated from the underlying RIFF parser ([`riffy_chan`]).
     #[error("RIFF parse error from riffy_chan: {0}")]
     Chunk(#[from] riffy_chan::ChunkError),
 
+    /// The format code in the `fmt ` chunk could not be parsed.
     #[error("FormatCode parse error: {0}")]
     FormatCodeError(#[from] FormatCodeError),
 
+    /// Failed to convert an [`I24`] value to `f64`.
     #[error("I24 parse error from i24 crate when parsing from I24 to f64. The value is: {0}")]
     FromI24Error(I24),
 
+    /// Failed to convert an `f64` value to [`I24`].
     #[error("I24 parse error from i24 crate when parsing from f64 to I24. The value is: {0}")]
     ToI24Error(f64),
 
+    /// The root chunk is not a RIFF chunk.
     #[error("Invalid chunk is detected. expected RIFF Chunk but found {actual:?}")]
     InvalidRiffChunk { actual: Chunk },
 
+    /// The RIFF chunk's FourCC is not `WAVE`.
     #[error(
         "Invalid chunk is detected. expected WAVE FourCC but found {:?}",
         actual
     )]
     InvalidWave { actual: FourCC },
 
+    /// The format code bytes in the `fmt ` chunk are malformed.
     #[error(
         "Invalid FormatCode in fmt chunk is detected. Found {:?}, and caused {}",
         actual,
@@ -536,6 +656,7 @@ pub enum WavError {
         inner_error: TryFromSliceError,
     },
 
+    /// The sample rate bytes in the `fmt ` chunk are malformed.
     #[error(
         "Invalid sample_rate in fmt chunk is detected. Found {:?}, and caused {}",
         actual,
@@ -546,6 +667,7 @@ pub enum WavError {
         inner_error: TryFromSliceError,
     },
 
+    /// The channel count bytes in the `fmt ` chunk are malformed.
     #[error(
         "Invalid channels in fmt chunk is detected. Found {:?}, and caused {}",
         actual,
@@ -556,6 +678,7 @@ pub enum WavError {
         inner_error: TryFromSliceError,
     },
 
+    /// The bit depth bytes in the `fmt ` chunk are malformed.
     #[error(
         "Invalid bits in fmt chunk is detected. Found {:?}, and caused {}",
         actual,
@@ -566,12 +689,14 @@ pub enum WavError {
         inner_error: TryFromSliceError,
     },
 
+    /// A sample in the `data` chunk could not be decoded.
     #[error("Invalid sample in data chunk is detected. Found {actual:?}, and caused {inner_error}")]
     InvalidSample {
         actual: Vec<u8>,
         inner_error: TryFromSliceError,
     },
 
+    /// The combination of bit depth and format code is not supported.
     #[error(
         "Unsupported FormatCode is detected. It must be in range of {expected:?}, found {format_code:?} and bits: {bits:?}"
     )]
@@ -581,6 +706,7 @@ pub enum WavError {
         expected: Vec<FormatCode>,
     },
 
+    /// The bit depth is not one of the supported values.
     #[error(
         "Unsupported bits parameter is detected. It must be in range of {SUPPORTED_BITS:?}, found {found_bits}"
     )]
