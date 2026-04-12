@@ -86,12 +86,14 @@ impl TryFrom<u16> for Bits {
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub enum FormatCode {
     #[default]
-    PCM,
-    IEEEFloat,
+    PCM = 1,
+    IEEEFloat = 3,
 }
 
-impl FormatCode {
-    pub fn new(inner: u16) -> Result<FormatCode, FormatCodeError> {
+impl TryFrom<u16> for FormatCode {
+    type Error = FormatCodeError;
+
+    fn try_from(inner: u16) -> Result<Self, Self::Error> {
         match inner {
             1 => Ok(FormatCode::PCM),
             3 => Ok(FormatCode::IEEEFloat),
@@ -160,7 +162,7 @@ fn parse_format_code(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             }
         })?);
 
-    wav.format_code = FormatCode::new(format_code_raw).map_err(WavError::FormatCodeError)?;
+    wav.format_code = FormatCode::try_from(format_code_raw).map_err(WavError::FormatCodeError)?;
     Ok(())
 }
 
