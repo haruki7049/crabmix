@@ -20,6 +20,66 @@ pub struct Wav {
     samples: Vec<f64>,
 }
 
+impl TryFrom<Wav> for Chunk {
+    type Error = WavError;
+
+    fn try_from(wav: Wav) -> Result<Self, Self::Error> {
+        let wave_four_cc = FourCC::from(*b"WAVE");
+
+        let fmt_chunk = construct_fmt_chunk(&wav)?;
+        let data_chunk = construct_data_chunk(&wav)?;
+        let result: Chunk = Chunk::Riff {
+            four_cc: wave_four_cc,
+            chunks: vec![fmt_chunk, data_chunk],
+        };
+        Ok(result)
+    }
+}
+
+fn construct_fmt_chunk(wav: &Wav) -> Result<Chunk, WavError> {
+    let format_code_raw: Vec<u8> = Into::<u16>::into(wav.format_code as u16)
+        .to_le_bytes()
+        .to_vec();
+    let channels_raw: Vec<u8> = wav.channels.to_le_bytes().to_vec();
+    let sample_rate_raw: Vec<u8> = wav.sample_rate.to_le_bytes().to_vec();
+
+    let bits_per_sample: u16 = wav.bits as u16;
+    let block_align: u16 = *wav.channels * (bits_per_sample / 8);
+    let bytes_per_sec: u32 = *wav.sample_rate * Into::<u32>::into(block_align);
+
+    let bits_per_sample_raw: Vec<u8> = bits_per_sample.to_le_bytes().to_vec();
+    let block_align_raw: Vec<u8> = block_align.to_le_bytes().to_vec();
+    let bytes_per_sec_raw: Vec<u8> = bytes_per_sec.to_le_bytes().to_vec();
+
+    let fmt_four_cc = FourCC::from(*b"fmt ");
+    let fmt_data: Vec<u8> = [
+        format_code_raw,
+        channels_raw,
+        sample_rate_raw,
+        bytes_per_sec_raw,
+        block_align_raw,
+        bits_per_sample_raw,
+    ]
+    .concat();
+
+    let fmt_chunk: Chunk = Chunk::Chunk {
+        four_cc: fmt_four_cc,
+        data: fmt_data,
+    };
+    Ok(fmt_chunk)
+}
+
+fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
+    let data_four_cc = FourCC::from(*b"data");
+    let data_data: Vec<u8> = [].concat();
+
+    let result: Chunk = Chunk::Chunk {
+        four_cc: data_four_cc,
+        data: data_data,
+    };
+    todo!()
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct SampleRate(u32);
 
@@ -83,7 +143,7 @@ impl TryFrom<u16> for Bits {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum FormatCode {
     #[default]
     PCM = 1,
