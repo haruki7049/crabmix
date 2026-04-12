@@ -675,7 +675,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        // write(&expected, &[])?;
+        write(&expected, &[])?;
         Ok(())
     }
 
