@@ -1,7 +1,7 @@
 //! # rustttwavvv
 
 use i24::I24;
-use num_traits::cast::ToPrimitive;
+use num_traits::{FromPrimitive, cast::ToPrimitive};
 use riffy_chan::{Chunk, FourCC};
 use std::{
     array::TryFromSliceError,
@@ -120,6 +120,29 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
                     });
                 }
             },
+            Bits::_24Bit => match wav.format_code {
+                FormatCode::PCM => {
+                    let i24_max: f64 = I24::MAX.to_f64().ok_or(WavError::FromI24Error(I24::MAX))?;
+                    let original_v: I24 =
+                        I24::from_f64(*sample * i24_max).ok_or(WavError::ToI24Error(*sample))?;
+                    let clamped_v: I24 = original_v.clamp(I24::MIN, I24::MAX);
+                    let v_raw: Vec<u8> = clamped_v.to_le_bytes().to_vec();
+
+                    dbg!(sample);
+                    dbg!(original_v);
+                    dbg!(clamped_v);
+                    dbg!(&v_raw);
+
+                    data_data.extend(v_raw);
+                }
+                _ => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code,
+                        expected: vec![FormatCode::PCM],
+                    });
+                }
+            },
             Bits::_32Bit => match wav.format_code {
                 FormatCode::PCM => {
                     let original_v: i32 = (*sample as i32) * i32::MAX;
@@ -146,7 +169,6 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
                     });
                 }
             },
-            _ => todo!(),
         }
     }
 
@@ -405,8 +427,10 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                             }
                         })?);
 
-                    let value: f64 = value_raw.to_f64().ok_or(WavError::I24Error(value_raw))?
-                        / I24::MAX.to_f64().ok_or(WavError::I24Error(I24::MAX))?;
+                    let value: f64 = value_raw
+                        .to_f64()
+                        .ok_or(WavError::FromI24Error(value_raw))?
+                        / I24::MAX.to_f64().ok_or(WavError::FromI24Error(I24::MAX))?;
                     samples.push(value)
                 }
                 _ => {
@@ -488,7 +512,10 @@ pub enum WavError {
     FormatCodeError(#[from] FormatCodeError),
 
     #[error("I24 parse error from i24 crate when parsing from I24 to f64. The value is: {0}")]
-    I24Error(I24),
+    FromI24Error(I24),
+
+    #[error("I24 parse error from i24 crate when parsing from f64 to I24. The value is: {0}")]
+    ToI24Error(f64),
 
     #[error("Invalid chunk is detected. expected RIFF Chunk but found {actual:?}")]
     InvalidRiffChunk { actual: Chunk },
@@ -675,7 +702,15 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        write(&expected, &[])?;
+        write(
+            &expected,
+            &[
+                82, 73, 70, 70, 66, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0,
+                1, 0, 68, 172, 0, 0, 204, 4, 2, 0, 3, 0, 24, 0, 100, 97, 116, 97, 30, 0, 0, 0, 0,
+                0, 0, 37, 53, 3, 15, 103, 6, 140, 146, 9, 99, 180, 12, 120, 201, 15, 171, 206, 18,
+                239, 192, 21, 91, 157, 24, 253, 96, 27,
+            ],
+        )?;
         Ok(())
     }
 
