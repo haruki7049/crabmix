@@ -52,7 +52,6 @@ impl Wav {
         }
 
         let wav: Wav = parse_chunk(chunks)?;
-
         Ok(wav)
     }
 }
@@ -65,14 +64,29 @@ fn parse_chunk(chunks: Vec<Chunk>) -> Result<Wav, WavError> {
             let four_cc_inner = Into::<[u8; 4]>::into(four_cc);
 
             if &four_cc_inner == b"fmt " {
-                let format_code_raw = u16::from_le_bytes(data[0..2].try_into().map_err(
-                    |err: TryFromSliceError| WavError::InvalidFormatCode {
-                        actual: data[0..2].to_vec(),
-                        inner_error: err,
-                    },
-                )?);
-                wav.format_code =
-                    FormatCode::new(format_code_raw).map_err(WavError::FormatCodeError)?;
+                {
+                    let format_code_raw = u16::from_le_bytes(data[0..2].try_into().map_err(
+                        |err: TryFromSliceError| WavError::InvalidFormatCode {
+                            actual: data[0..2].to_vec(),
+                            inner_error: err,
+                        },
+                    )?);
+                    wav.format_code =
+                        FormatCode::new(format_code_raw).map_err(WavError::FormatCodeError)?;
+                }
+
+                {
+                    let bits = u16::from_le_bytes(data[14..16].try_into().map_err(
+                        |err: TryFromSliceError| WavError::InvalidBits {
+                            actual: data[14..16].to_vec(),
+                            inner_error: err,
+                        },
+                    )?);
+                    const SUPPORTED_BITS: [u16; 5] = [8, 16, 24, 32, 64];
+                    if SUPPORTED_BITS.contains(&bits) {
+                        wav.bits = bits;
+                    }
+                }
             } else if &four_cc_inner == b"data" {
             }
         }
@@ -107,6 +121,16 @@ pub enum WavError {
         inner_error
     )]
     InvalidFormatCode {
+        actual: Vec<u8>,
+        inner_error: TryFromSliceError,
+    },
+
+    #[error(
+        "Invalid bits in fmt chunk is detected. Found {:?}, and caused {}",
+        actual,
+        inner_error
+    )]
+    InvalidBits {
         actual: Vec<u8>,
         inner_error: TryFromSliceError,
     },
