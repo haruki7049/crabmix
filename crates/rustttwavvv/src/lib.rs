@@ -26,7 +26,7 @@ impl TryFrom<Wav> for Chunk {
     fn try_from(wav: Wav) -> Result<Self, Self::Error> {
         let wave_four_cc = FourCC::from(*b"WAVE");
 
-        let fmt_chunk = construct_fmt_chunk(&wav)?;
+        let fmt_chunk = construct_fmt_chunk(&wav);
         let data_chunk = construct_data_chunk(&wav)?;
         let result: Chunk = Chunk::Riff {
             four_cc: wave_four_cc,
@@ -36,7 +36,23 @@ impl TryFrom<Wav> for Chunk {
     }
 }
 
-fn construct_fmt_chunk(wav: &Wav) -> Result<Chunk, WavError> {
+impl TryFrom<&Wav> for Chunk {
+    type Error = WavError;
+
+    fn try_from(wav: &Wav) -> Result<Self, Self::Error> {
+        let wave_four_cc = FourCC::from(*b"WAVE");
+
+        let fmt_chunk = construct_fmt_chunk(wav);
+        let data_chunk = construct_data_chunk(wav)?;
+        let result: Chunk = Chunk::Riff {
+            four_cc: wave_four_cc,
+            chunks: vec![fmt_chunk, data_chunk],
+        };
+        Ok(result)
+    }
+}
+
+fn construct_fmt_chunk(wav: &Wav) -> Chunk {
     let format_code_raw: Vec<u8> = Into::<u16>::into(wav.format_code as u16)
         .to_le_bytes()
         .to_vec();
@@ -66,18 +82,79 @@ fn construct_fmt_chunk(wav: &Wav) -> Result<Chunk, WavError> {
         four_cc: fmt_four_cc,
         data: fmt_data,
     };
-    Ok(fmt_chunk)
+    fmt_chunk
 }
 
 fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
     let data_four_cc = FourCC::from(*b"data");
-    let data_data: Vec<u8> = [].concat();
+    let mut data_data: Vec<u8> = Vec::new();
+
+    for sample in &wav.samples {
+        match wav.bits {
+            Bits::_8Bit => match wav.format_code {
+                FormatCode::PCM => {
+                    let original_v: u8 = (*sample as u8) * u8::MAX;
+                    let clamped_v: u8 = original_v.clamp(u8::MIN, u8::MAX);
+                    data_data.push(clamped_v);
+                }
+                _ => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code,
+                        expected: vec![FormatCode::PCM],
+                    });
+                }
+            },
+            Bits::_16Bit => match wav.format_code {
+                FormatCode::PCM => {
+                    let original_v: i16 = (*sample as i16) * i16::MAX;
+                    let clamped_v: i16 = original_v.clamp(i16::MIN, i16::MAX);
+                    let v_raw: Vec<u8> = clamped_v.to_le_bytes().to_vec();
+                    data_data.extend(v_raw);
+                }
+                _ => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code,
+                        expected: vec![FormatCode::PCM],
+                    });
+                }
+            },
+            Bits::_32Bit => match wav.format_code {
+                FormatCode::PCM => {
+                    let original_v: i32 = (*sample as i32) * i32::MAX;
+                    let clamped_v: i32 = original_v.clamp(i32::MIN, i32::MAX);
+                    let v_raw: Vec<u8> = clamped_v.to_le_bytes().to_vec();
+                    data_data.extend(v_raw);
+                }
+                FormatCode::IEEEFloat => {
+                    let original_v: f64 = *sample;
+                    let v_raw: Vec<u8> = original_v.to_le_bytes().to_vec();
+                    data_data.extend(v_raw);
+                }
+            },
+            Bits::_64Bit => match wav.format_code {
+                FormatCode::IEEEFloat => {
+                    let v_raw: Vec<u8> = sample.to_le_bytes().to_vec();
+                    data_data.extend(v_raw);
+                }
+                _ => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code,
+                        expected: vec![FormatCode::IEEEFloat],
+                    });
+                }
+            },
+            _ => todo!(),
+        }
+    }
 
     let result: Chunk = Chunk::Chunk {
         four_cc: data_four_cc,
         data: data_data,
     };
-    todo!()
+    Ok(result)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
@@ -171,7 +248,7 @@ pub enum FormatCodeError {
 impl Wav {
     pub fn read<R: Read>(read: R) -> Result<Wav, WavError> {
         // Parse buf to RIFF Chunk
-        let root_chunk: Chunk = Chunk::read(read).map_err(WavError::ChunkError)?;
+        let root_chunk: Chunk = Chunk::read(read)?;
 
         // Unpack RIFF format's four_cc and chunks
         let (four_cc, chunks): (FourCC, Vec<Chunk>) = match root_chunk {
@@ -187,8 +264,10 @@ impl Wav {
         Ok(wav)
     }
 
-    pub fn write<W: Write>(&self, write: W) -> Result<Wav, WavError> {
-        todo!()
+    pub fn write<W: Write>(&self, write: &mut W) -> Result<(), WavError> {
+        let chunk: Chunk = self.try_into()?;
+        chunk.write(write)?;
+        Ok(())
     }
 }
 
@@ -284,7 +363,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
                         bits: wav.bits,
-                        format_code: wav.format_code.clone(),
+                        format_code: wav.format_code,
                         expected: vec![FormatCode::PCM],
                     });
                 }
@@ -308,7 +387,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
                         bits: wav.bits,
-                        format_code: wav.format_code.clone(),
+                        format_code: wav.format_code,
                         expected: vec![FormatCode::PCM],
                     });
                 }
@@ -333,7 +412,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
                         bits: wav.bits,
-                        format_code: wav.format_code.clone(),
+                        format_code: wav.format_code,
                         expected: vec![FormatCode::PCM],
                     });
                 }
@@ -374,7 +453,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                 FormatCode::PCM => {
                     return Err(WavError::UnsupportedFormatCode {
                         bits: wav.bits,
-                        format_code: wav.format_code.clone(),
+                        format_code: wav.format_code,
                         expected: vec![FormatCode::IEEEFloat],
                     });
                 }
@@ -402,19 +481,16 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
 
 #[derive(Debug, Error)]
 pub enum WavError {
-    #[error("RIFF parse error from riffy_chan")]
-    ChunkError(riffy_chan::ChunkError),
+    #[error("RIFF parse error from riffy_chan: {0}")]
+    Chunk(#[from] riffy_chan::ChunkError),
 
-    #[error("FormatCode parse error")]
-    FormatCodeError(FormatCodeError),
+    #[error("FormatCode parse error: {0}")]
+    FormatCodeError(#[from] FormatCodeError),
 
-    #[error("I24 parse error from i24 crate when parsing from I24 to f64")]
+    #[error("I24 parse error from i24 crate when parsing from I24 to f64. The value is: {0}")]
     I24Error(I24),
 
-    #[error(
-        "Invalid chunk is detected. expected RIFF Chunk but found {:?}",
-        actual
-    )]
+    #[error("Invalid chunk is detected. expected RIFF Chunk but found {actual:?}")]
     InvalidRiffChunk { actual: Chunk },
 
     #[error(
@@ -490,7 +566,7 @@ mod wav_tests {
     use std::io::{Read, Seek};
 
     fn read(filepath: &str, expected: &Wav) -> Result<(), Box<dyn std::error::Error>> {
-        let mut file = std::fs::File::open(filepath)?;
+        let file = std::fs::File::open(filepath)?;
         let actual: &Wav = &Wav::read(file)?;
 
         assert_eq!(expected, actual);
@@ -531,7 +607,14 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        // write(&expected, b"")?;
+        write(
+            &expected,
+            &[
+                82, 73, 70, 70, 46, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0,
+                1, 0, 68, 172, 0, 0, 68, 172, 0, 0, 1, 0, 8, 0, 100, 97, 116, 97, 10, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )?;
         Ok(())
     }
 
@@ -558,7 +641,14 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        // write(&expected, b"")?;
+        write(
+            &expected,
+            &[
+                82, 73, 70, 70, 56, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0,
+                1, 0, 68, 172, 0, 0, 136, 88, 1, 0, 2, 0, 16, 0, 100, 97, 116, 97, 20, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )?;
         Ok(())
     }
 
@@ -585,7 +675,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        // write(&expected, b"")?;
+        // write(&expected, &[])?;
         Ok(())
     }
 
@@ -612,7 +702,15 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        // write(&expected, b"")?;
+        write(
+            &expected,
+            &[
+                82, 73, 70, 70, 76, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0,
+                1, 0, 68, 172, 0, 0, 16, 177, 2, 0, 4, 0, 32, 0, 100, 97, 116, 97, 40, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        )?;
         Ok(())
     }
 
@@ -639,7 +737,17 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        // write(&expected, b"")?;
+        write(
+            &expected,
+            &[
+                82, 73, 70, 70, 116, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 3, 0,
+                1, 0, 68, 172, 0, 0, 16, 177, 2, 0, 4, 0, 32, 0, 100, 97, 116, 97, 80, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 39, 169, 153, 63, 0, 0, 0, 192, 63, 156, 169, 63,
+                0, 0, 0, 0, 21, 37, 179, 63, 0, 0, 0, 224, 200, 104, 185, 63, 0, 0, 0, 192, 238,
+                146, 191, 63, 0, 0, 0, 160, 169, 206, 194, 63, 0, 0, 0, 128, 241, 192, 197, 63, 0,
+                0, 0, 128, 88, 157, 200, 63, 0, 0, 0, 32, 254, 96, 203, 63,
+            ],
+        )?;
         Ok(())
     }
 
@@ -666,7 +774,17 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        // write(&expected, b"")?;
+        write(
+            &expected,
+            &[
+                82, 73, 70, 70, 116, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 3, 0,
+                1, 0, 68, 172, 0, 0, 32, 98, 5, 0, 8, 0, 64, 0, 100, 97, 116, 97, 80, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 39, 169, 153, 63, 0, 0, 0, 192, 63, 156, 169, 63,
+                0, 0, 0, 0, 21, 37, 179, 63, 0, 0, 0, 224, 200, 104, 185, 63, 0, 0, 0, 192, 238,
+                146, 191, 63, 0, 0, 0, 160, 169, 206, 194, 63, 0, 0, 0, 128, 241, 192, 197, 63, 0,
+                0, 0, 128, 88, 157, 200, 63, 0, 0, 0, 32, 254, 96, 203, 63,
+            ],
+        )?;
         Ok(())
     }
 }
