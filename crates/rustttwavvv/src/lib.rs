@@ -62,9 +62,9 @@ use thiserror::Error;
 /// `Wav` stores the audio metadata (format code, sample rate, channels, bit
 /// depth) together with the sample data normalised to `f64` values.
 ///
-/// Use [`Wav::read`] to parse a WAV file from any [`Read`](std::io::Read)
+/// Use [`Wav::read`] to parse a WAV file from any [`Read`]
 /// source, and [`Wav::write`] to serialise it to any
-/// [`Write`](std::io::Write) destination.
+/// [`Write`] destination.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Wav {
     /// The audio encoding format (e.g. PCM or IEEE Float).
