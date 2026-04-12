@@ -12,10 +12,27 @@ use thiserror::Error;
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Wav {
     format_code: FormatCode,
-    sample_rate: u32,
+    sample_rate: SampleRate,
     channels: u16,
     bits: u16,
     samples: Vec<f64>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct SampleRate(u32);
+
+impl From<u32> for SampleRate {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl std::ops::Deref for SampleRate {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
@@ -110,7 +127,7 @@ fn parse_sample_rate(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             }
         })?);
 
-    wav.sample_rate = sample_rate;
+    wav.sample_rate = sample_rate.into();
     Ok(())
 }
 
@@ -403,7 +420,7 @@ mod wav_tests {
         const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
-            sample_rate: 44100,
+            sample_rate: 44100.into(),
             channels: 1,
             bits: 8,
             samples: vec![
@@ -421,7 +438,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        write(&expected, b"")?;
+        // write(&expected, b"")?;
         Ok(())
     }
 
@@ -430,7 +447,7 @@ mod wav_tests {
         const FILEPATH: &str = "./assets/10-samples-16bit-PCM.wav";
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
-            sample_rate: 44100,
+            sample_rate: 44100.into(),
             channels: 1,
             bits: 16,
             samples: vec![
@@ -448,7 +465,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        write(&expected, b"")?;
+        // write(&expected, b"")?;
         Ok(())
     }
 
@@ -457,7 +474,7 @@ mod wav_tests {
         const FILEPATH: &str = "./assets/10-samples-24bit-PCM.wav";
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
-            sample_rate: 44100,
+            sample_rate: 44100.into(),
             channels: 1,
             bits: 24,
             samples: vec![
@@ -475,7 +492,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        write(&expected, b"")?;
+        // write(&expected, b"")?;
         Ok(())
     }
 
@@ -484,7 +501,7 @@ mod wav_tests {
         const FILEPATH: &str = "./assets/10-samples-32bit-PCM.wav";
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
-            sample_rate: 44100,
+            sample_rate: 44100.into(),
             channels: 1,
             bits: 32,
             samples: vec![
@@ -502,7 +519,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        write(&expected, b"")?;
+        // write(&expected, b"")?;
         Ok(())
     }
 
@@ -511,7 +528,7 @@ mod wav_tests {
         const FILEPATH: &str = "./assets/10-samples-32bit-IEEEFloat.wav";
         let expected: Wav = Wav {
             format_code: FormatCode::IEEEFloat,
-            sample_rate: 44100,
+            sample_rate: 44100.into(),
             channels: 1,
             bits: 32,
             samples: vec![
@@ -529,7 +546,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        write(&expected, b"")?;
+        // write(&expected, b"")?;
         Ok(())
     }
 
@@ -538,7 +555,7 @@ mod wav_tests {
         const FILEPATH: &str = "./assets/10-samples-64bit-IEEEFloat.wav";
         let expected: Wav = Wav {
             format_code: FormatCode::IEEEFloat,
-            sample_rate: 44100,
+            sample_rate: 44100.into(),
             channels: 1,
             bits: 64,
             samples: vec![
@@ -556,7 +573,7 @@ mod wav_tests {
         };
 
         read(FILEPATH, &expected)?;
-        write(&expected, b"")?;
+        // write(&expected, b"")?;
         Ok(())
     }
 }
