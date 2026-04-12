@@ -430,4 +430,108 @@ mod wav_tests {
         read(FILEPATH, expected)?;
         Ok(())
     }
+
+    #[test]
+    fn _10_samples_24bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+        const FILEPATH: &str = "./assets/10-samples-24bit-PCM.wav";
+        let expected: Wav = Wav {
+            format_code: FormatCode::PCM,
+            sample_rate: 44100,
+            channels: 1,
+            bits: 24,
+            samples: vec![
+                0.0,
+                0.02505934537164514,
+                0.0500201046490794,
+                0.07478476462182577,
+                0.0992549776142809,
+                0.1233358530206505,
+                0.1469320233979253,
+                0.16995038627986744,
+                0.1923021307351745,
+                0.21389737294881023,
+            ],
+        };
+
+        read(FILEPATH, expected)?;
+        Ok(())
+    }
+
+    #[test]
+    fn _10_samples_32bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+        const FILEPATH: &str = "./assets/10-samples-32bit-PCM.wav";
+        let expected: Wav = Wav {
+            format_code: FormatCode::PCM,
+            sample_rate: 44100,
+            channels: 1,
+            bits: 32,
+            samples: vec![
+                0.0,
+                0.025059329357491493,
+                0.050020210468219695,
+                0.07478457692767707,
+                0.09925513719173853,
+                0.12333576386949782,
+                0.14693184203791052,
+                0.16995066412256596,
+                0.19230180987729775,
+                0.21389748166031086,
+            ],
+        };
+
+        read(FILEPATH, expected)?;
+        Ok(())
+    }
+
+    #[test]
+    fn _10_samples_32bit_ieee_float() -> Result<(), Box<dyn std::error::Error>> {
+        const FILEPATH: &str = "./assets/10-samples-32bit-IEEEFloat.wav";
+        let expected: Wav = Wav {
+            format_code: FormatCode::IEEEFloat,
+            sample_rate: 44100,
+            channels: 1,
+            bits: 32,
+            samples: vec![
+                0.0,
+                0.025059329345822334,
+                0.050020210444927216,
+                0.07478457689285278,
+                0.09925513714551926,
+                0.12333576381206512,
+                0.14693184196949005,
+                0.1699506640434265,
+                0.19230180978775024,
+                0.2138974815607071,
+            ],
+        };
+
+        read(FILEPATH, expected)?;
+        Ok(())
+    }
+
+    #[test]
+    fn _10_samples_64bit_ieee_float() -> Result<(), Box<dyn std::error::Error>> {
+        const FILEPATH: &str = "./assets/10-samples-64bit-IEEEFloat.wav";
+        let expected: Wav = Wav {
+            format_code: FormatCode::IEEEFloat,
+            sample_rate: 44100,
+            channels: 1,
+            bits: 64,
+            samples: vec![
+                0.0,
+                0.025059329345822334,
+                0.050020210444927216,
+                0.07478457689285278,
+                0.09925513714551926,
+                0.12333576381206512,
+                0.14693184196949005,
+                0.1699506640434265,
+                0.19230180978775024,
+                0.2138974815607071,
+            ],
+        };
+
+        read(FILEPATH, expected)?;
+        Ok(())
+    }
 }
