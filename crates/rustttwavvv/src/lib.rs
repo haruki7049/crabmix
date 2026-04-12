@@ -170,8 +170,16 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             16 => match wav.format_code {
                 FormatCode::PCM => {
                     const BYTES_NUMBER: usize = 2; // A i16 wave data's sample takes 2
+                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
+                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
                     let value_raw =
-                        i16::from_le_bytes([data[i * BYTES_NUMBER], data[(i + 1) * BYTES_NUMBER]]);
+                        i16::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
+                            WavError::InvalidSample {
+                                actual: values,
+                                inner_error: err,
+                            }
+                        })?);
+
                     let value: f64 = (value_raw / i16::MAX).into();
                     samples[i] = value;
                 }
@@ -188,12 +196,13 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     const BYTES_NUMBER: usize = 3; // A i24 wave data's sample takes 3
                     let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
                     let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
-                    let value_raw = I24::from_le_bytes(values[0..3].try_into().map_err(|err| {
-                        WavError::InvalidSample {
-                            actual: values,
-                            inner_error: err,
-                        }
-                    })?);
+                    let value_raw =
+                        I24::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
+                            WavError::InvalidSample {
+                                actual: values,
+                                inner_error: err,
+                            }
+                        })?);
                     let value: f64 = (value_raw / I24::MAX)
                         .to_f64()
                         .ok_or(WavError::I24Error(value_raw))?;
@@ -207,6 +216,61 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                     });
                 }
             },
+            32 => match wav.format_code {
+                FormatCode::PCM => {
+                    const BYTES_NUMBER: usize = 4; // A i24 wave data's sample takes 3
+                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
+                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
+                    let value_raw =
+                        i32::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
+                            WavError::InvalidSample {
+                                actual: values,
+                                inner_error: err,
+                            }
+                        })?);
+
+                    let value: f64 = (value_raw / i32::MAX).into();
+                    samples[i] = value;
+                }
+                FormatCode::IEEEFloat => {
+                    const BYTES_NUMBER: usize = 4;
+                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
+                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
+                    let value_raw =
+                        f32::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
+                            WavError::InvalidSample {
+                                actual: values,
+                                inner_error: err,
+                            }
+                        })?);
+
+                    let value: f64 = value_raw.into();
+                    samples[i] = value;
+                }
+            },
+            64 => match wav.format_code {
+                FormatCode::PCM => {
+                    return Err(WavError::UnsupportedFormatCode {
+                        bits: wav.bits,
+                        format_code: wav.format_code.clone(),
+                        expected: vec![FormatCode::IEEEFloat],
+                    });
+                }
+                FormatCode::IEEEFloat => {
+                    const BYTES_NUMBER: usize = 8;
+                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
+                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
+                    let value =
+                        f64::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
+                            WavError::InvalidSample {
+                                actual: values,
+                                inner_error: err,
+                            }
+                        })?);
+
+                    samples[i] = value;
+                }
+            },
             _ => {
                 return Err(WavError::UnsupportedBits {
                     found_bits: wav.bits,
@@ -215,7 +279,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
         }
     }
 
-    todo!()
+    Ok(())
 }
 
 #[derive(Debug, Error)]
