@@ -151,13 +151,13 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
         }
     };
 
-    let mut samples: Vec<f64> = Vec::with_capacity(sample_count);
-    for i in 0..samples.len() {
+    let mut samples: Vec<f64> = Vec::new();
+    for i in 0..sample_count {
         match wav.bits {
             8 => match wav.format_code {
                 FormatCode::PCM => {
                     let value: f64 = (data[i] / u8::MAX).into();
-                    samples[i] = value;
+                    samples.push(value)
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -180,8 +180,8 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                             }
                         })?);
 
-                    let value: f64 = (value_raw / i16::MAX).into();
-                    samples[i] = value;
+                    let value: f64 = Into::<f64>::into(value_raw) / Into::<f64>::into(i16::MAX);
+                    samples.push(value);
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -203,10 +203,10 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                                 inner_error: err,
                             }
                         })?);
-                    let value: f64 = (value_raw / I24::MAX)
-                        .to_f64()
-                        .ok_or(WavError::I24Error(value_raw))?;
-                    samples[i] = value;
+
+                    let value: f64 = value_raw.to_f64().ok_or(WavError::I24Error(value_raw))?
+                        / I24::MAX.to_f64().ok_or(WavError::I24Error(I24::MAX))?;
+                    samples.push(value)
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -229,8 +229,8 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                             }
                         })?);
 
-                    let value: f64 = (value_raw / i32::MAX).into();
-                    samples[i] = value;
+                    let value: f64 = Into::<f64>::into(value_raw) / Into::<f64>::into(i32::MAX);
+                    samples.push(value);
                 }
                 FormatCode::IEEEFloat => {
                     const BYTES_NUMBER: usize = 4;
@@ -245,7 +245,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                         })?);
 
                     let value: f64 = value_raw.into();
-                    samples[i] = value;
+                    samples.push(value);
                 }
             },
             64 => match wav.format_code {
@@ -268,7 +268,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
                             }
                         })?);
 
-                    samples[i] = value;
+                    samples.push(value);
                 }
             },
             _ => {
@@ -279,6 +279,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
         }
     }
 
+    wav.samples = samples;
     Ok(())
 }
 
@@ -368,20 +369,33 @@ pub enum WavError {
 
 #[cfg(test)]
 mod wav_tests {
-    use super::Wav;
+    use super::{FormatCode, Wav};
 
     #[test]
     fn read() -> Result<(), Box<dyn std::error::Error>> {
-        let test_files = ["./assets/10-samples.wav"];
+        const FILEPATH: &str = "./assets/10-samples.wav";
+        let file = std::fs::File::open(FILEPATH)?;
+        let actual: Wav = Wav::read(file)?;
+        let expected: Wav = Wav {
+            format_code: FormatCode::PCM,
+            sample_rate: 44100,
+            channels: 1,
+            bits: 16,
+            samples: vec![
+                3.051850947599719e-5,
+                0.0249946592608417,
+                0.05008087405011139,
+                0.07473982970671712,
+                0.09933774834437085,
+                0.12323374126407666,
+                0.14706869716483048,
+                0.16980498672444838,
+                0.1924192022461623,
+                0.21387371440778832,
+            ],
+        };
 
-        for path in test_files {
-            let file = std::fs::File::open(path)?;
-
-            // Test:
-            let wav: Wav = Wav::read(file)?;
-
-            dbg!(wav);
-        }
+        assert_eq!(expected, actual);
 
         Ok(())
     }
