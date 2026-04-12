@@ -75,7 +75,7 @@ fn parse_chunk(chunks: Vec<Chunk>) -> Result<Wav, WavError> {
     Ok(wav)
 }
 
-fn parse_format_code(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
+fn parse_format_code(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
     let format_code_raw =
         u16::from_le_bytes(data[0..2].try_into().map_err(|err: TryFromSliceError| {
             WavError::InvalidFormatCode {
@@ -88,7 +88,7 @@ fn parse_format_code(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
     Ok(())
 }
 
-fn parse_sample_rate(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
+fn parse_sample_rate(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
     let sample_rate =
         u32::from_le_bytes(data[4..8].try_into().map_err(|err: TryFromSliceError| {
             WavError::InvalidSampleRate {
@@ -101,7 +101,7 @@ fn parse_sample_rate(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
     Ok(())
 }
 
-fn parse_bits(wav: &mut Wav, data: &Vec<u8>) -> Result<(), WavError> {
+fn parse_bits(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
     const SUPPORTED_BITS: [u16; 5] = [8, 16, 24, 32, 64];
     let bits = u16::from_le_bytes(data[14..16].try_into().map_err(|err: TryFromSliceError| {
         WavError::InvalidBits {
