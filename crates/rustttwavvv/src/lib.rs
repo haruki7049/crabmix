@@ -371,9 +371,9 @@ pub enum WavError {
 mod wav_tests {
     use super::{FormatCode, Wav};
 
-    fn read(filepath: &str, expected: Wav) -> Result<(), Box<dyn std::error::Error>> {
+    fn read(filepath: &str, expected: &Wav) -> Result<(), Box<dyn std::error::Error>> {
         let file = std::fs::File::open(filepath)?;
-        let actual: Wav = Wav::read(file)?;
+        let actual: &Wav = &Wav::read(file)?;
         assert_eq!(expected, actual);
 
         Ok(())
@@ -401,7 +401,7 @@ mod wav_tests {
             ],
         };
 
-        read(FILEPATH, expected)?;
+        read(FILEPATH, &expected)?;
         Ok(())
     }
 
@@ -427,7 +427,7 @@ mod wav_tests {
             ],
         };
 
-        read(FILEPATH, expected)?;
+        read(FILEPATH, &expected)?;
         Ok(())
     }
 
@@ -453,7 +453,7 @@ mod wav_tests {
             ],
         };
 
-        read(FILEPATH, expected)?;
+        read(FILEPATH, &expected)?;
         Ok(())
     }
 
@@ -479,7 +479,7 @@ mod wav_tests {
             ],
         };
 
-        read(FILEPATH, expected)?;
+        read(FILEPATH, &expected)?;
         Ok(())
     }
 
@@ -505,7 +505,7 @@ mod wav_tests {
             ],
         };
 
-        read(FILEPATH, expected)?;
+        read(FILEPATH, &expected)?;
         Ok(())
     }
 
@@ -531,7 +531,7 @@ mod wav_tests {
             ],
         };
 
-        read(FILEPATH, expected)?;
+        read(FILEPATH, &expected)?;
         Ok(())
     }
 }
