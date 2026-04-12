@@ -13,7 +13,7 @@ use thiserror::Error;
 pub struct Wav {
     format_code: FormatCode,
     sample_rate: SampleRate,
-    channels: u16,
+    channels: Channels,
     bits: u16,
     samples: Vec<f64>,
 }
@@ -29,6 +29,23 @@ impl From<u32> for SampleRate {
 
 impl std::ops::Deref for SampleRate {
     type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct Channels(u16);
+
+impl From<u16> for Channels {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl std::ops::Deref for Channels {
+    type Target = u16;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -140,7 +157,7 @@ fn parse_channels(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             }
         })?);
 
-    wav.channels = channels;
+    wav.channels = channels.into();
     Ok(())
 }
 
@@ -421,7 +438,7 @@ mod wav_tests {
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
-            channels: 1,
+            channels: 1.into(),
             bits: 8,
             samples: vec![
                 0.5019607843137255,
@@ -448,7 +465,7 @@ mod wav_tests {
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
-            channels: 1,
+            channels: 1.into(),
             bits: 16,
             samples: vec![
                 0.0,
@@ -475,7 +492,7 @@ mod wav_tests {
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
-            channels: 1,
+            channels: 1.into(),
             bits: 24,
             samples: vec![
                 0.0,
@@ -502,7 +519,7 @@ mod wav_tests {
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
             sample_rate: 44100.into(),
-            channels: 1,
+            channels: 1.into(),
             bits: 32,
             samples: vec![
                 0.0,
@@ -529,7 +546,7 @@ mod wav_tests {
         let expected: Wav = Wav {
             format_code: FormatCode::IEEEFloat,
             sample_rate: 44100.into(),
-            channels: 1,
+            channels: 1.into(),
             bits: 32,
             samples: vec![
                 0.0,
@@ -556,7 +573,7 @@ mod wav_tests {
         let expected: Wav = Wav {
             format_code: FormatCode::IEEEFloat,
             sample_rate: 44100.into(),
-            channels: 1,
+            channels: 1.into(),
             bits: 64,
             samples: vec![
                 0.0,
