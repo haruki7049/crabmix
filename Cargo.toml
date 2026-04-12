@@ -18,6 +18,9 @@ readme = "README.md"
 repository = "https://github.com/haruki7049/moonlight"
 publish = false
 
+[workspace.metadata.crane]
+name = "moonlight"
+
 [workspace.dependencies]
 anyhow = "1.0.102"
 clap = { version = "4.5.40", features = ["derive", "string"] }
