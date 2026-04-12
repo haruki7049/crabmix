@@ -645,11 +645,9 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             },
             Bits::_64Bit => match wav.format_code {
                 FormatCode::IEEEFloat => {
-                    f64::from_le_bytes(chunk.try_into().map_err(|err| {
-                        WavError::InvalidSample {
-                            actual: chunk.to_vec(),
-                            inner_error: err,
-                        }
+                    f64::from_le_bytes(chunk.try_into().map_err(|err| WavError::InvalidSample {
+                        actual: chunk.to_vec(),
+                        inner_error: err,
                     })?)
                 }
                 _ => {
