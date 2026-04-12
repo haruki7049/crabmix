@@ -156,7 +156,7 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
         match wav.bits {
             8 => match wav.format_code {
                 FormatCode::PCM => {
-                    let value: f64 = (data[i] / u8::MAX).into();
+                    let value: f64 = Into::<f64>::into(data[i]) / Into::<f64>::into(u8::MAX);
                     samples.push(value)
                 }
                 _ => {
@@ -371,32 +371,63 @@ pub enum WavError {
 mod wav_tests {
     use super::{FormatCode, Wav};
 
-    #[test]
-    fn read() -> Result<(), Box<dyn std::error::Error>> {
-        const FILEPATH: &str = "./assets/10-samples.wav";
-        let file = std::fs::File::open(FILEPATH)?;
+    fn read(filepath: &str, expected: Wav) -> Result<(), Box<dyn std::error::Error>> {
+        let file = std::fs::File::open(filepath)?;
         let actual: Wav = Wav::read(file)?;
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+        const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
+        let expected: Wav = Wav {
+            format_code: FormatCode::PCM,
+            sample_rate: 44100,
+            channels: 1,
+            bits: 8,
+            samples: vec![
+                0.5019607843137255,
+                0.5137254901960784,
+                0.5254901960784314,
+                0.5372549019607843,
+                0.5490196078431373,
+                0.5607843137254902,
+                0.5725490196078431,
+                0.5843137254901961,
+                0.596078431372549,
+                0.6078431372549019,
+            ],
+        };
+
+        read(FILEPATH, expected)?;
+        Ok(())
+    }
+
+    #[test]
+    fn _10_samples_16bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+        const FILEPATH: &str = "./assets/10-samples-16bit-PCM.wav";
         let expected: Wav = Wav {
             format_code: FormatCode::PCM,
             sample_rate: 44100,
             channels: 1,
             bits: 16,
             samples: vec![
-                3.051850947599719e-5,
-                0.0249946592608417,
-                0.05008087405011139,
-                0.07473982970671712,
-                0.09933774834437085,
-                0.12323374126407666,
-                0.14706869716483048,
-                0.16980498672444838,
-                0.1924192022461623,
-                0.21387371440778832,
+                0.0,
+                0.025055696279793694,
+                0.0500198370311594,
+                0.07480086672566912,
+                0.09921567430646687,
+                0.12341685232093265,
+                0.14685506759849848,
+                0.17001861629078036,
+                0.19226660969878231,
+                0.21390423291726432,
             ],
         };
 
-        assert_eq!(expected, actual);
-
+        read(FILEPATH, expected)?;
         Ok(())
     }
 }
