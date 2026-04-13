@@ -52,9 +52,7 @@ use riffy_chan::{Chunk, FourCC};
 use std::{
     array::TryFromSliceError,
     io::{Read, Write},
-    sync::LazyLock,
 };
-use strum::{EnumIter, IntoEnumIterator};
 use thiserror::Error;
 
 /// A WAV audio file represented in memory.
@@ -65,6 +63,26 @@ use thiserror::Error;
 /// Use [`Wav::read`] to parse a WAV file from any [`Read`]
 /// source, and [`Wav::write`] to serialise it to any
 /// [`Write`] destination.
+///
+/// # Constructing a `Wav`
+///
+/// ```
+/// use rustttwavvv::{Wav, FormatCode, SampleRate, Channels, Bits};
+///
+/// let wav = Wav::new(
+///     FormatCode::PCM,
+///     SampleRate::new(44100),
+///     Channels::new(1),
+///     Bits::_16Bit,
+///     vec![0.0, 0.5, -0.5],
+/// );
+///
+/// assert_eq!(wav.format_code(), FormatCode::PCM);
+/// assert_eq!(wav.sample_rate().value(), 44100);
+/// assert_eq!(wav.channels().value(), 1);
+/// assert_eq!(wav.bits(), Bits::_16Bit);
+/// assert_eq!(wav.samples().len(), 3);
+/// ```
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Wav {
     /// The audio encoding format (e.g. PCM or IEEE Float).
@@ -112,22 +130,20 @@ impl TryFrom<&Wav> for Chunk {
 }
 
 fn construct_fmt_chunk(wav: &Wav) -> Chunk {
-    let format_code_raw: Vec<u8> = Into::<u16>::into(wav.format_code as u16)
-        .to_le_bytes()
-        .to_vec();
-    let channels_raw: Vec<u8> = wav.channels.to_le_bytes().to_vec();
-    let sample_rate_raw: Vec<u8> = wav.sample_rate.to_le_bytes().to_vec();
+    let format_code_raw = (wav.format_code as u16).to_le_bytes().to_vec();
+    let channels_raw = wav.channels.value().to_le_bytes().to_vec();
+    let sample_rate_raw = wav.sample_rate.value().to_le_bytes().to_vec();
 
-    let bits_per_sample: u16 = wav.bits as u16;
-    let block_align: u16 = *wav.channels * (bits_per_sample / 8);
-    let bytes_per_sec: u32 = *wav.sample_rate * Into::<u32>::into(block_align);
+    let bits_per_sample = wav.bits as u16;
+    let block_align = wav.channels.value() * (bits_per_sample / 8);
+    let bytes_per_sec = wav.sample_rate.value() * u32::from(block_align);
 
-    let bits_per_sample_raw: Vec<u8> = bits_per_sample.to_le_bytes().to_vec();
-    let block_align_raw: Vec<u8> = block_align.to_le_bytes().to_vec();
-    let bytes_per_sec_raw: Vec<u8> = bytes_per_sec.to_le_bytes().to_vec();
+    let bits_per_sample_raw = bits_per_sample.to_le_bytes().to_vec();
+    let block_align_raw = block_align.to_le_bytes().to_vec();
+    let bytes_per_sec_raw = bytes_per_sec.to_le_bytes().to_vec();
 
     let fmt_four_cc = FourCC::from(*b"fmt ");
-    let fmt_data: Vec<u8> = [
+    let fmt_data = [
         format_code_raw,
         channels_raw,
         sample_rate_raw,
@@ -137,11 +153,10 @@ fn construct_fmt_chunk(wav: &Wav) -> Chunk {
     ]
     .concat();
 
-    let fmt_chunk: Chunk = Chunk::Chunk {
+    Chunk::Chunk {
         four_cc: fmt_four_cc,
         data: fmt_data,
-    };
-    fmt_chunk
+    }
 }
 
 fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
@@ -152,8 +167,7 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
         match wav.bits {
             Bits::_8Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    let original_v: u8 = (*sample as u8) * u8::MAX;
-                    let clamped_v: u8 = original_v.clamp(u8::MIN, u8::MAX);
+                    let clamped_v = ((*sample as u8) * u8::MAX).clamp(u8::MIN, u8::MAX);
                     data_data.push(clamped_v);
                 }
                 _ => {
@@ -166,10 +180,8 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
             },
             Bits::_16Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    let original_v: i16 = (*sample as i16) * i16::MAX;
-                    let clamped_v: i16 = original_v.clamp(i16::MIN, i16::MAX);
-                    let v_raw: Vec<u8> = clamped_v.to_le_bytes().to_vec();
-                    data_data.extend(v_raw);
+                    let clamped_v = ((*sample as i16) * i16::MAX).clamp(i16::MIN, i16::MAX);
+                    data_data.extend(clamped_v.to_le_bytes());
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -181,18 +193,11 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
             },
             Bits::_24Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    let i24_max: f64 = I24::MAX.to_f64().ok_or(WavError::FromI24Error(I24::MAX))?;
-                    let original_v: I24 =
+                    let i24_max = I24::MAX.to_f64().ok_or(WavError::FromI24Error(I24::MAX))?;
+                    let original_v =
                         I24::from_f64(*sample * i24_max).ok_or(WavError::ToI24Error(*sample))?;
-                    let clamped_v: I24 = original_v.clamp(I24::MIN, I24::MAX);
-                    let v_raw: Vec<u8> = clamped_v.to_le_bytes().to_vec();
-
-                    dbg!(sample);
-                    dbg!(original_v);
-                    dbg!(clamped_v);
-                    dbg!(&v_raw);
-
-                    data_data.extend(v_raw);
+                    let clamped_v = original_v.clamp(I24::MIN, I24::MAX);
+                    data_data.extend(clamped_v.to_le_bytes());
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -204,21 +209,16 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
             },
             Bits::_32Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    let original_v: i32 = (*sample as i32) * i32::MAX;
-                    let clamped_v: i32 = original_v.clamp(i32::MIN, i32::MAX);
-                    let v_raw: Vec<u8> = clamped_v.to_le_bytes().to_vec();
-                    data_data.extend(v_raw);
+                    let clamped_v = ((*sample as i32) * i32::MAX).clamp(i32::MIN, i32::MAX);
+                    data_data.extend(clamped_v.to_le_bytes());
                 }
                 FormatCode::IEEEFloat => {
-                    let original_v: f64 = *sample;
-                    let v_raw: Vec<u8> = original_v.to_le_bytes().to_vec();
-                    data_data.extend(v_raw);
+                    data_data.extend(sample.to_le_bytes());
                 }
             },
             Bits::_64Bit => match wav.format_code {
                 FormatCode::IEEEFloat => {
-                    let v_raw: Vec<u8> = sample.to_le_bytes().to_vec();
-                    data_data.extend(v_raw);
+                    data_data.extend(sample.to_le_bytes());
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -231,11 +231,10 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
         }
     }
 
-    let result: Chunk = Chunk::Chunk {
+    Ok(Chunk::Chunk {
         four_cc: data_four_cc,
         data: data_data,
-    };
-    Ok(result)
+    })
 }
 
 /// The sample rate of a WAV file, in samples per second.
@@ -244,6 +243,18 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
 /// 96000 (high-resolution audio).
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct SampleRate(u32);
+
+impl SampleRate {
+    /// Creates a new `SampleRate` from the given value.
+    pub fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Returns the inner sample rate value.
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+}
 
 impl From<u32> for SampleRate {
     fn from(value: u32) -> Self {
@@ -264,6 +275,18 @@ impl std::ops::Deref for SampleRate {
 /// Typical values are 1 (mono) and 2 (stereo).
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct Channels(u16);
+
+impl Channels {
+    /// Creates a new `Channels` from the given value.
+    pub fn new(value: u16) -> Self {
+        Self(value)
+    }
+
+    /// Returns the inner channel count value.
+    pub fn value(&self) -> u16 {
+        self.0
+    }
+}
 
 impl From<u16> for Channels {
     fn from(value: u16) -> Self {
@@ -293,7 +316,7 @@ impl std::ops::Deref for Channels {
 /// | `_24Bit`  | PCM                    |
 /// | `_32Bit`  | PCM, IEEE Float        |
 /// | `_64Bit`  | IEEE Float             |
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, EnumIter)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum Bits {
     /// 8-bit samples (unsigned, PCM only).
     _8Bit = 8,
@@ -310,7 +333,21 @@ pub enum Bits {
     _64Bit = 64,
 }
 
-static SUPPORTED_BITS: LazyLock<Vec<Bits>> = LazyLock::new(|| Bits::iter().collect());
+/// All supported bit depths.
+const SUPPORTED_BITS: [Bits; 5] = [
+    Bits::_8Bit,
+    Bits::_16Bit,
+    Bits::_24Bit,
+    Bits::_32Bit,
+    Bits::_64Bit,
+];
+
+impl Bits {
+    /// Returns the number of bytes per sample for this bit depth.
+    pub fn byte_count(self) -> usize {
+        (self as usize) / 8
+    }
+}
 
 impl TryFrom<u16> for Bits {
     type Error = WavError;
@@ -361,6 +398,58 @@ pub enum FormatCodeError {
 }
 
 impl Wav {
+    /// Creates a new `Wav` with the given metadata and sample data.
+    pub fn new(
+        format_code: FormatCode,
+        sample_rate: SampleRate,
+        channels: Channels,
+        bits: Bits,
+        samples: Vec<f64>,
+    ) -> Self {
+        Self {
+            format_code,
+            sample_rate,
+            channels,
+            bits,
+            samples,
+        }
+    }
+
+    /// Returns the audio encoding format.
+    pub fn format_code(&self) -> FormatCode {
+        self.format_code
+    }
+
+    /// Returns a reference to the sample rate.
+    pub fn sample_rate(&self) -> &SampleRate {
+        &self.sample_rate
+    }
+
+    /// Returns a reference to the channel count.
+    pub fn channels(&self) -> &Channels {
+        &self.channels
+    }
+
+    /// Returns the bit depth.
+    pub fn bits(&self) -> Bits {
+        self.bits
+    }
+
+    /// Returns a slice of the normalised sample data.
+    pub fn samples(&self) -> &[f64] {
+        &self.samples
+    }
+
+    /// Returns a mutable reference to the sample data.
+    pub fn samples_mut(&mut self) -> &mut Vec<f64> {
+        &mut self.samples
+    }
+
+    /// Consumes the `Wav` and returns the sample data.
+    pub fn into_samples(self) -> Vec<f64> {
+        self.samples
+    }
+
     /// Reads and parses a WAV file from the given reader.
     ///
     /// The reader is consumed to parse the underlying RIFF structure and
@@ -478,22 +567,17 @@ fn parse_bits(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
 }
 
 fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
-    let sample_count = match wav.bits {
-        Bits::_8Bit => data.len(),
-        Bits::_16Bit => data.len() / 2,
-        Bits::_24Bit => data.len() / 3,
-        Bits::_32Bit => data.len() / 4,
-        Bits::_64Bit => data.len() / 8,
-    };
+    let byte_count = wav.bits.byte_count();
+    let sample_count = data.len() / byte_count;
+    let mut samples = Vec::with_capacity(sample_count);
 
-    let mut samples: Vec<f64> = Vec::new();
     for i in 0..sample_count {
-        match wav.bits {
+        let offset = i * byte_count;
+        let chunk = &data[offset..offset + byte_count];
+
+        let value = match wav.bits {
             Bits::_8Bit => match wav.format_code {
-                FormatCode::PCM => {
-                    let value: f64 = Into::<f64>::into(data[i]) / Into::<f64>::into(u8::MAX);
-                    samples.push(value)
-                }
+                FormatCode::PCM => f64::from(chunk[0]) / f64::from(u8::MAX),
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
                         bits: wav.bits,
@@ -504,19 +588,13 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             },
             Bits::_16Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    const BYTES_NUMBER: usize = 2; // A i16 wave data's sample takes 2
-                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
-                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
-                    let value_raw =
-                        i16::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
-                            WavError::InvalidSample {
-                                actual: values,
-                                inner_error: err,
-                            }
-                        })?);
-
-                    let value: f64 = Into::<f64>::into(value_raw) / Into::<f64>::into(i16::MAX);
-                    samples.push(value);
+                    let raw = i16::from_le_bytes(chunk.try_into().map_err(|err| {
+                        WavError::InvalidSample {
+                            actual: chunk.to_vec(),
+                            inner_error: err,
+                        }
+                    })?);
+                    f64::from(raw) / f64::from(i16::MAX)
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -528,22 +606,14 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             },
             Bits::_24Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    const BYTES_NUMBER: usize = 3; // A i24 wave data's sample takes 3
-                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
-                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
-                    let value_raw =
-                        I24::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
-                            WavError::InvalidSample {
-                                actual: values,
-                                inner_error: err,
-                            }
-                        })?);
-
-                    let value: f64 = value_raw
-                        .to_f64()
-                        .ok_or(WavError::FromI24Error(value_raw))?
-                        / I24::MAX.to_f64().ok_or(WavError::FromI24Error(I24::MAX))?;
-                    samples.push(value)
+                    let raw = I24::from_le_bytes(chunk.try_into().map_err(|err| {
+                        WavError::InvalidSample {
+                            actual: chunk.to_vec(),
+                            inner_error: err,
+                        }
+                    })?);
+                    raw.to_f64().ok_or(WavError::FromI24Error(raw))?
+                        / I24::MAX.to_f64().ok_or(WavError::FromI24Error(I24::MAX))?
                 }
                 _ => {
                     return Err(WavError::UnsupportedFormatCode {
@@ -555,60 +625,42 @@ fn parse_samples(wav: &mut Wav, data: &[u8]) -> Result<(), WavError> {
             },
             Bits::_32Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    const BYTES_NUMBER: usize = 4; // A i24 wave data's sample takes 3
-                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
-                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
-                    let value_raw =
-                        i32::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
-                            WavError::InvalidSample {
-                                actual: values,
-                                inner_error: err,
-                            }
-                        })?);
-
-                    let value: f64 = Into::<f64>::into(value_raw) / Into::<f64>::into(i32::MAX);
-                    samples.push(value);
+                    let raw = i32::from_le_bytes(chunk.try_into().map_err(|err| {
+                        WavError::InvalidSample {
+                            actual: chunk.to_vec(),
+                            inner_error: err,
+                        }
+                    })?);
+                    f64::from(raw) / f64::from(i32::MAX)
                 }
                 FormatCode::IEEEFloat => {
-                    const BYTES_NUMBER: usize = 4;
-                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
-                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
-                    let value_raw =
-                        f32::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
-                            WavError::InvalidSample {
-                                actual: values,
-                                inner_error: err,
-                            }
-                        })?);
-
-                    let value: f64 = value_raw.into();
-                    samples.push(value);
+                    let raw = f32::from_le_bytes(chunk.try_into().map_err(|err| {
+                        WavError::InvalidSample {
+                            actual: chunk.to_vec(),
+                            inner_error: err,
+                        }
+                    })?);
+                    f64::from(raw)
                 }
             },
             Bits::_64Bit => match wav.format_code {
-                FormatCode::PCM => {
+                FormatCode::IEEEFloat => {
+                    f64::from_le_bytes(chunk.try_into().map_err(|err| WavError::InvalidSample {
+                        actual: chunk.to_vec(),
+                        inner_error: err,
+                    })?)
+                }
+                _ => {
                     return Err(WavError::UnsupportedFormatCode {
                         bits: wav.bits,
                         format_code: wav.format_code,
                         expected: vec![FormatCode::IEEEFloat],
                     });
                 }
-                FormatCode::IEEEFloat => {
-                    const BYTES_NUMBER: usize = 8;
-                    let indexes: Vec<usize> = (i * BYTES_NUMBER..(i + 1) * BYTES_NUMBER).collect();
-                    let values: Vec<u8> = indexes.into_iter().map(|v| data[v]).collect();
-                    let value =
-                        f64::from_le_bytes(values[0..BYTES_NUMBER].try_into().map_err(|err| {
-                            WavError::InvalidSample {
-                                actual: values,
-                                inner_error: err,
-                            }
-                        })?);
-
-                    samples.push(value);
-                }
             },
-        }
+        };
+
+        samples.push(value);
     }
 
     wav.samples = samples;
