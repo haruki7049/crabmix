@@ -11,13 +11,9 @@ pub struct Wave {
 
 impl Wave {
     pub fn new(samples: Vec<f64>, sample_rate: u32, channels: u16) -> Result<Self, WaveError> {
-        if sample_rate == 0 {
-            return Err(WaveError::InvalidSampleRate(sample_rate));
-        }
-
-        if channels == 0 {
-            return Err(WaveError::InvalidChannels(channels));
-        }
+        whether_sample_rate_is_not_zero(sample_rate)?;
+        whether_channels_is_not_zero(channels)?;
+        whether_samples_is_too_short_than_channels(channels, &samples)?;
 
         Ok(Self {
             samples,
@@ -52,6 +48,36 @@ impl Wave {
             channels,
         })
     }
+}
+
+fn whether_sample_rate_is_not_zero(sample_rate: u32) -> Result<(), WaveError> {
+    if sample_rate == 0 {
+        return Err(WaveError::InvalidSampleRate(sample_rate));
+    }
+
+    Ok(())
+}
+
+fn whether_channels_is_not_zero(channels: u16) -> Result<(), WaveError> {
+    if channels == 0 {
+        return Err(WaveError::InvalidChannels(channels));
+    }
+
+    Ok(())
+}
+
+fn whether_samples_is_too_short_than_channels(
+    channels: u16,
+    samples: &[f64],
+) -> Result<(), WaveError> {
+    if channels as usize > samples.len() {
+        return Err(WaveError::TooShortSamples {
+            samples_len: samples.len(),
+            channels,
+        });
+    }
+
+    Ok(())
 }
 
 fn check_zero_samples(wave: &Wave) -> Result<(), WaveError> {
@@ -105,6 +131,11 @@ pub enum WaveError {
 
     #[error("MixError: {0:?}")]
     MixError(#[from] MixError),
+
+    #[error(
+        "Too short samples. The channels value is {channels}, and the samples.len() is {samples_len}"
+    )]
+    TooShortSamples { channels: u16, samples_len: usize },
 }
 
 #[derive(Debug, Error)]
@@ -122,4 +153,20 @@ pub enum MixError {
 
     #[error("Both samples have zero samples")]
     ZeroSamples,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Wave;
+
+    #[test]
+    fn mix() -> Result<(), Box<dyn std::error::Error>> {
+        let left = Wave::new(vec![0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
+        let right = Wave::new(vec![1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;
+        let result = left.mix(&right, |l, r| l + r)?;
+
+        assert_eq!(result, Wave::new(vec![1.5, 1.5, 1.5, 1.5, 1.5], 44100, 1)?);
+
+        Ok(())
+    }
 }
