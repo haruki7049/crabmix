@@ -25,10 +25,10 @@ impl Waveable for Wave {
     where
         F: Fn(f64, f64) -> f64,
     {
-        check_both_samples(self, other)?;
-        check_both_sample_rate(self, other)?;
-        check_both_channels(self, other)?;
-        check_is_empty_samples(self)?;
+        validate_equal_sample_rates(self, other)?;
+        validate_equal_channels(self, other)?;
+        validate_equal_lengths(self, other)?;
+        validate_not_empty(self)?;
 
         let sample_rate = self.sample_rate;
         let channels = self.channels;
@@ -51,9 +51,9 @@ impl Waveable for Wave {
 
 impl Wave {
     pub fn new(samples: &[f64], sample_rate: u32, channels: u16) -> Result<Self, WaveError> {
-        whether_sample_rate_is_not_zero(sample_rate)?;
-        whether_channels_is_not_zero(channels)?;
-        whether_samples_is_too_short_than_channels(channels, samples)?;
+        ensure_valid_sample_rate(sample_rate)?;
+        ensure_valid_channels(channels)?;
+        ensure_sufficient_samples(channels, samples)?;
 
         Ok(Self {
             samples: samples.to_vec(),
@@ -63,115 +63,105 @@ impl Wave {
     }
 }
 
-fn whether_sample_rate_is_not_zero(sample_rate: u32) -> Result<(), WaveError> {
+fn ensure_valid_sample_rate(sample_rate: u32) -> Result<(), WaveError> {
     if sample_rate == 0 {
-        return Err(WaveError::New(NewError::InvalidSampleRate(sample_rate)));
+        return Err(WaveError::Creation(CreationError::InvalidSampleRate(
+            sample_rate,
+        )));
     }
-
     Ok(())
 }
 
-fn whether_channels_is_not_zero(channels: u16) -> Result<(), WaveError> {
+fn ensure_valid_channels(channels: u16) -> Result<(), WaveError> {
     if channels == 0 {
-        return Err(WaveError::New(NewError::InvalidChannels(channels)));
+        return Err(WaveError::Creation(CreationError::InvalidChannels(
+            channels,
+        )));
     }
-
     Ok(())
 }
 
-fn whether_samples_is_too_short_than_channels(
-    channels: u16,
-    samples: &[f64],
-) -> Result<(), WaveError> {
-    if channels as usize > samples.len() {
-        return Err(WaveError::New(NewError::TooShortSamples {
-            samples_len: samples.len(),
-            channels,
+fn ensure_sufficient_samples(channels: u16, samples: &[f64]) -> Result<(), WaveError> {
+    if (channels as usize) > samples.len() {
+        return Err(WaveError::Creation(CreationError::TooFewSamples {
+            actual: samples.len(),
+            required: channels as usize,
         }));
     }
-
     Ok(())
 }
 
-fn check_is_empty_samples(wave: &Wave) -> Result<(), WaveError> {
+fn validate_not_empty(wave: &Wave) -> Result<(), WaveError> {
     if wave.samples.is_empty() {
-        return Err(WaveError::Mix(MixError::ZeroSamples));
+        return Err(WaveError::Data(DataError::EmptySamples));
     }
-
     Ok(())
 }
 
-fn check_both_samples(left: &Wave, right: &Wave) -> Result<(), WaveError> {
+fn validate_equal_lengths(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     if left.samples.len() != right.samples.len() {
-        return Err(WaveError::Mix(MixError::InvalidSamplesLen {
+        return Err(WaveError::Data(DataError::LengthMismatch {
             left: left.samples.len(),
             right: right.samples.len(),
         }));
     }
-
     Ok(())
 }
 
-fn check_both_sample_rate(left: &Wave, right: &Wave) -> Result<(), WaveError> {
+fn validate_equal_sample_rates(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     if left.sample_rate != right.sample_rate {
-        return Err(WaveError::Mix(MixError::InvalidSampleRate {
+        return Err(WaveError::Data(DataError::SampleRateMismatch {
             left: left.sample_rate,
             right: right.sample_rate,
         }));
     }
-
     Ok(())
 }
 
-fn check_both_channels(left: &Wave, right: &Wave) -> Result<(), WaveError> {
+fn validate_equal_channels(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     if left.channels != right.channels {
-        return Err(WaveError::Mix(MixError::InvalidChannels {
+        return Err(WaveError::Data(DataError::ChannelMismatch {
             left: left.channels,
             right: right.channels,
         }));
     }
-
     Ok(())
 }
 
 #[derive(Debug, Error)]
 pub enum WaveError {
-    #[error("NewError: {0:?}")]
-    New(#[from] NewError),
+    #[error("creation error: {0}")]
+    Creation(#[from] CreationError),
 
-    #[error("MixError: {0:?}")]
-    Mix(#[from] MixError),
+    #[error("data validation error: {0}")]
+    Data(#[from] DataError),
 }
 
 #[derive(Debug, Error)]
-pub enum NewError {
-    #[error("Invalid sample_rate, {0:?}")]
+pub enum CreationError {
+    #[error("sample rate must be greater than 0, found {0}")]
     InvalidSampleRate(u32),
 
-    #[error("Invalid channels, {0:?}")]
+    #[error("channel count must be greater than 0, found {0}")]
     InvalidChannels(u16),
 
-    #[error(
-        "Too short samples. The channels value is {channels}, and the samples.len() is {samples_len}"
-    )]
-    TooShortSamples { channels: u16, samples_len: usize },
+    #[error("insufficient samples provided: required {required}, found {actual}")]
+    TooFewSamples { required: usize, actual: usize },
 }
 
 #[derive(Debug, Error)]
-pub enum MixError {
-    #[error("The self's sample_rate, {left:?} and the other's smaple_rate, {right:?} is different")]
-    InvalidSampleRate { left: u32, right: u32 },
+pub enum DataError {
+    #[error("sample rate mismatch: left={left}Hz, right={right}Hz")]
+    SampleRateMismatch { left: u32, right: u32 },
 
-    #[error(
-        "The samples' len by self, {left:?} and the samples' len by other, {right:?} is different"
-    )]
-    InvalidSamplesLen { left: usize, right: usize },
+    #[error("sample length mismatch: left={left}, right={right}")]
+    LengthMismatch { left: usize, right: usize },
 
-    #[error("The self's channels, {left:?} and the other's channels, {right:?} is different")]
-    InvalidChannels { left: u16, right: u16 },
+    #[error("channel count mismatch: left={left}, right={right}")]
+    ChannelMismatch { left: u16, right: u16 },
 
-    #[error("Both samples have zero samples")]
-    ZeroSamples,
+    #[error("operation cannot be performed on empty samples")]
+    EmptySamples,
 }
 
 #[cfg(test)]
