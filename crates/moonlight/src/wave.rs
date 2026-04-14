@@ -1,5 +1,6 @@
 //! # wave module
 
+use std::io::Read;
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -20,6 +21,11 @@ pub trait Waveable {
     fn separate(&self, separate_point: usize) -> Result<(Self, Self), Self::Error>
     where
         Self: Sized;
+
+    fn read<R>(read: R) -> Result<Self, WaveError>
+    where
+        Self: Sized,
+        R: Read;
 }
 
 impl Waveable for Wave {
@@ -77,6 +83,14 @@ impl Waveable for Wave {
             Wave::new(&terminal, self.sample_rate, self.channels)?,
         );
         Ok(result)
+    }
+
+    fn read<R>(read: R) -> Result<Self, WaveError>
+    where
+        Self: Sized,
+        R: Read,
+    {
+        todo!()
     }
 }
 
@@ -264,5 +278,31 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    mod read_write_tests {
+        fn read() -> Result<(), Box<dyn std::error::Error>> {
+            todo!()
+        }
+
+        fn write() -> Result<(), Box<dyn std::error::Error>> {
+            todo!()
+        }
+
+        #[test]
+        fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+            todo!()
+        }
+
+        // #[test]
+        // fn _10_samples_16bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
+        // #[test]
+        // fn _10_samples_24bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
+        // #[test]
+        // fn _10_samples_32bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
+        // #[test]
+        // fn _10_samples_32bit_ieeefloat() -> Result<(), Box<dyn std::error::Error>> {}
+        // #[test]
+        // fn _10_samples_64bit_ieeefloat() -> Result<(), Box<dyn std::error::Error>> {}
     }
 }
