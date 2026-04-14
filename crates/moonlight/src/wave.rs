@@ -52,7 +52,7 @@ impl Wave {
 
 fn whether_sample_rate_is_not_zero(sample_rate: u32) -> Result<(), WaveError> {
     if sample_rate == 0 {
-        return Err(WaveError::InvalidSampleRate(sample_rate));
+        return Err(WaveError::New(NewError::InvalidSampleRate(sample_rate)));
     }
 
     Ok(())
@@ -60,7 +60,7 @@ fn whether_sample_rate_is_not_zero(sample_rate: u32) -> Result<(), WaveError> {
 
 fn whether_channels_is_not_zero(channels: u16) -> Result<(), WaveError> {
     if channels == 0 {
-        return Err(WaveError::InvalidChannels(channels));
+        return Err(WaveError::New(NewError::InvalidChannels(channels)));
     }
 
     Ok(())
@@ -71,10 +71,10 @@ fn whether_samples_is_too_short_than_channels(
     samples: &[f64],
 ) -> Result<(), WaveError> {
     if channels as usize > samples.len() {
-        return Err(WaveError::TooShortSamples {
+        return Err(WaveError::New(NewError::TooShortSamples {
             samples_len: samples.len(),
             channels,
-        });
+        }));
     }
 
     Ok(())
@@ -82,7 +82,7 @@ fn whether_samples_is_too_short_than_channels(
 
 fn check_is_empty_samples(wave: &Wave) -> Result<(), WaveError> {
     if wave.samples.is_empty() {
-        return Err(WaveError::MixError(MixError::ZeroSamples));
+        return Err(WaveError::Mix(MixError::ZeroSamples));
     }
 
     Ok(())
@@ -90,7 +90,7 @@ fn check_is_empty_samples(wave: &Wave) -> Result<(), WaveError> {
 
 fn check_both_samples(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     if left.samples.len() != right.samples.len() {
-        return Err(WaveError::MixError(MixError::InvalidSamplesLen {
+        return Err(WaveError::Mix(MixError::InvalidSamplesLen {
             left: left.samples.len(),
             right: right.samples.len(),
         }));
@@ -101,7 +101,7 @@ fn check_both_samples(left: &Wave, right: &Wave) -> Result<(), WaveError> {
 
 fn check_both_sample_rate(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     if left.sample_rate != right.sample_rate {
-        return Err(WaveError::MixError(MixError::InvalidSampleRate {
+        return Err(WaveError::Mix(MixError::InvalidSampleRate {
             left: left.sample_rate,
             right: right.sample_rate,
         }));
@@ -112,7 +112,7 @@ fn check_both_sample_rate(left: &Wave, right: &Wave) -> Result<(), WaveError> {
 
 fn check_both_channels(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     if left.channels != right.channels {
-        return Err(WaveError::MixError(MixError::InvalidChannels {
+        return Err(WaveError::Mix(MixError::InvalidChannels {
             left: left.channels,
             right: right.channels,
         }));
@@ -123,14 +123,20 @@ fn check_both_channels(left: &Wave, right: &Wave) -> Result<(), WaveError> {
 
 #[derive(Debug, Error)]
 pub enum WaveError {
+    #[error("NewError: {0:?}")]
+    New(#[from] NewError),
+
+    #[error("MixError: {0:?}")]
+    Mix(#[from] MixError),
+}
+
+#[derive(Debug, Error)]
+pub enum NewError {
     #[error("Invalid sample_rate, {0:?}")]
     InvalidSampleRate(u32),
 
     #[error("Invalid channels, {0:?}")]
     InvalidChannels(u16),
-
-    #[error("MixError: {0:?}")]
-    MixError(#[from] MixError),
 
     #[error(
         "Too short samples. The channels value is {channels}, and the samples.len() is {samples_len}"
