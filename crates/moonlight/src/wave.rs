@@ -10,13 +10,13 @@ pub struct Wave {
 }
 
 impl Wave {
-    pub fn new(samples: Vec<f64>, sample_rate: u32, channels: u16) -> Result<Self, WaveError> {
+    pub fn new(samples: &[f64], sample_rate: u32, channels: u16) -> Result<Self, WaveError> {
         whether_sample_rate_is_not_zero(sample_rate)?;
         whether_channels_is_not_zero(channels)?;
-        whether_samples_is_too_short_than_channels(channels, &samples)?;
+        whether_samples_is_too_short_than_channels(channels, samples)?;
 
         Ok(Self {
-            samples,
+            samples: samples.to_vec(),
             sample_rate,
             channels,
         })
@@ -161,11 +161,11 @@ mod tests {
 
     #[test]
     fn mix() -> Result<(), Box<dyn std::error::Error>> {
-        let left = Wave::new(vec![0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
-        let right = Wave::new(vec![1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;
+        let left = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
+        let right = Wave::new(&[1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;
         let result = left.mix(&right, |l, r| l + r)?;
 
-        assert_eq!(result, Wave::new(vec![1.5, 1.5, 1.5, 1.5, 1.5], 44100, 1)?);
+        assert_eq!(result, Wave::new(&[1.5, 1.5, 1.5, 1.5, 1.5], 44100, 1)?);
 
         Ok(())
     }
