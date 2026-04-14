@@ -577,8 +577,45 @@ mod tests {
             Ok(())
         }
 
-        // #[test]
-        // fn _10_samples_32bit_ieeefloat() -> Result<(), Box<dyn std::error::Error>> {}
+        #[test]
+        fn _10_samples_32bit_ieeefloat() -> Result<(), Box<dyn std::error::Error>> {
+            const FILEPATH: &str = "./assets/10-samples-32bit-IEEEFloat.wav";
+            let file_format = FileFormat::wav(rustttwavvv::FormatCode::IEEEFloat, 32);
+            let options = WaveWriteOptions::new(file_format);
+            let expected = Wave::new(
+                &[
+                    0.0,
+                    0.025059329345822334,
+                    0.050020210444927216,
+                    0.07478457689285278,
+                    0.09925513714551926,
+                    0.12333576381206512,
+                    0.14693184196949005,
+                    0.1699506640434265,
+                    0.19230180978775024,
+                    0.2138974815607071,
+                ],
+                44100,
+                1,
+            )?;
+
+            read(FILEPATH, &expected)?;
+            write(
+                &expected,
+                options,
+                &[
+                    82, 73, 70, 70, 116, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0,
+                    3, 0, 1, 0, 68, 172, 0, 0, 16, 177, 2, 0, 4, 0, 32, 0, 100, 97, 116, 97, 80, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 39, 169, 153, 63, 0, 0, 0, 192, 63,
+                    156, 169, 63, 0, 0, 0, 0, 21, 37, 179, 63, 0, 0, 0, 224, 200, 104, 185, 63, 0,
+                    0, 0, 192, 238, 146, 191, 63, 0, 0, 0, 160, 169, 206, 194, 63, 0, 0, 0, 128,
+                    241, 192, 197, 63, 0, 0, 0, 128, 88, 157, 200, 63, 0, 0, 0, 32, 254, 96, 203,
+                    63,
+                ],
+            )?;
+            Ok(())
+        }
+
         // #[test]
         // fn _10_samples_64bit_ieeefloat() -> Result<(), Box<dyn std::error::Error>> {}
     }
