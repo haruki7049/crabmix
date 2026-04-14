@@ -16,6 +16,10 @@ pub trait Waveable {
     where
         Self: Sized,
         F: Fn(f64, f64) -> f64;
+
+    fn separate(&self, separate_point: usize) -> Result<(Self, Self), Self::Error>
+    where
+        Self: Sized;
 }
 
 impl Waveable for Wave {
@@ -46,6 +50,33 @@ impl Waveable for Wave {
             sample_rate,
             channels,
         })
+    }
+
+    fn separate(&self, separate_point: usize) -> Result<(Self, Self), Self::Error>
+    where
+        Self: Sized,
+    {
+        validate_not_empty(self)?;
+        validate_samples_len_is_bigger_than_point(self, separate_point)?;
+        validate_point_is_not_zero(separate_point)?;
+
+        let initial_len = separate_point;
+        let terminal_len = self.samples.len() - separate_point;
+        let mut initial = Vec::new();
+        let mut terminal = Vec::new();
+
+        for i in 0..initial_len {
+            initial.push(self.samples[i]);
+        }
+        for i in 0..terminal_len {
+            terminal.push(self.samples[initial_len + i]);
+        }
+
+        let result = (
+            Wave::new(&initial, self.sample_rate, self.channels)?,
+            Wave::new(&terminal, self.sample_rate, self.channels)?,
+        );
+        Ok(result)
     }
 }
 
@@ -98,6 +129,23 @@ fn validate_not_empty(wave: &Wave) -> Result<(), WaveError> {
     Ok(())
 }
 
+fn validate_point_is_not_zero(separate_point: usize) -> Result<(), WaveError> {
+    if separate_point == 0 {
+        return Err(WaveError::Data(DataError::TooShortSeparatePoint));
+    }
+    Ok(())
+}
+
+fn validate_samples_len_is_bigger_than_point(
+    wave: &Wave,
+    separate_point: usize,
+) -> Result<(), WaveError> {
+    if wave.samples.len() < separate_point {
+        return Err(WaveError::Data(DataError::TooShortSamples));
+    }
+    Ok(())
+}
+
 fn validate_equal_lengths(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     if left.samples.len() != right.samples.len() {
         return Err(WaveError::Data(DataError::LengthMismatch {
@@ -128,7 +176,7 @@ fn validate_equal_channels(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     Ok(())
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum WaveError {
     #[error("creation error: {0}")]
     Creation(#[from] CreationError),
@@ -137,7 +185,7 @@ pub enum WaveError {
     Data(#[from] DataError),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum CreationError {
     #[error("sample rate must be greater than 0, found {0}")]
     InvalidSampleRate(u32),
@@ -149,7 +197,7 @@ pub enum CreationError {
     TooFewSamples { required: usize, actual: usize },
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum DataError {
     #[error("sample rate mismatch: left={left}Hz, right={right}Hz")]
     SampleRateMismatch { left: u32, right: u32 },
@@ -162,11 +210,18 @@ pub enum DataError {
 
     #[error("operation cannot be performed on empty samples")]
     EmptySamples,
+
+    #[error("operation cannot be performed on too short samples")]
+    TooShortSamples,
+
+    #[error("operation cannot be performed on separate_point variable which is zero")]
+    TooShortSeparatePoint,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Wave;
+
+    use super::{DataError, Wave, WaveError, Waveable};
 
     #[test]
     fn new() -> Result<(), Box<dyn std::error::Error>> {
@@ -178,13 +233,35 @@ mod tests {
 
     #[test]
     fn mix() -> Result<(), Box<dyn std::error::Error>> {
-        use super::Waveable;
-
         let left = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
         let right = Wave::new(&[1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;
         let result = left.mix(&right, |l, r| l + r)?;
 
         assert_eq!(result, Wave::new(&[1.5, 1.5, 1.5, 1.5, 1.5], 44100, 1)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn separate() -> Result<(), Box<dyn std::error::Error>> {
+        {
+            let original = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
+            let expected = (
+                Wave::new(&[0.5, 0.5, 0.5], 44100, 1)?,
+                Wave::new(&[0.5, 0.5], 44100, 1)?,
+            );
+            let actual = original.separate(3)?;
+
+            assert_eq!(expected, actual);
+        }
+
+        {
+            let original = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
+            let expected = Err(WaveError::Data(DataError::TooShortSeparatePoint));
+            let actual = original.separate(0);
+
+            assert_eq!(expected, actual);
+        }
 
         Ok(())
     }
