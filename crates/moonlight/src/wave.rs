@@ -166,7 +166,7 @@ pub enum DataError {
 
 #[cfg(test)]
 mod tests {
-    use super::{Wave, Waveable};
+    use super::Wave;
 
     #[test]
     fn new() -> Result<(), Box<dyn std::error::Error>> {
@@ -178,6 +178,8 @@ mod tests {
 
     #[test]
     fn mix() -> Result<(), Box<dyn std::error::Error>> {
+        use super::Waveable;
+
         let left = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
         let right = Wave::new(&[1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;
         let result = left.mix(&right, |l, r| l + r)?;
