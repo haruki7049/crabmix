@@ -29,7 +29,7 @@ impl Wave {
         check_both_samples(self, other)?;
         check_both_sample_rate(self, other)?;
         check_both_channels(self, other)?;
-        check_zero_samples(self)?;
+        check_is_empty_samples(self)?;
 
         let sample_rate = self.sample_rate;
         let channels = self.channels;
@@ -80,8 +80,8 @@ fn whether_samples_is_too_short_than_channels(
     Ok(())
 }
 
-fn check_zero_samples(wave: &Wave) -> Result<(), WaveError> {
-    if wave.samples.len() == 0 {
+fn check_is_empty_samples(wave: &Wave) -> Result<(), WaveError> {
+    if wave.samples.is_empty() {
         return Err(WaveError::MixError(MixError::ZeroSamples));
     }
 
