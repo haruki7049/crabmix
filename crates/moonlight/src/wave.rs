@@ -60,21 +60,21 @@ pub trait Waveable {
 
     fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
     where
-        Self: Sized,
+        Self: Waveable + Sized,
         F: Fn(f64, f64) -> f64;
 
     fn separate(&self, separate_point: usize) -> Result<(Self, Self), Self::Error>
     where
-        Self: Sized;
+        Self: Waveable + Sized;
 
     fn read<R>(read: R) -> Result<Self, WaveError>
     where
-        Self: Sized,
+        Self: Waveable + Sized,
         R: Read;
 
     fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), WaveError>
     where
-        Self: Sized,
+        Self: Waveable + Sized,
         W: Write,
         O: WriteOptions;
 }
@@ -119,7 +119,7 @@ impl Waveable for Wave {
 
     fn separate(&self, separate_point: usize) -> Result<(Self, Self), Self::Error>
     where
-        Self: Sized,
+        Self: Waveable + Sized,
     {
         validate_not_empty(self)?;
         validate_samples_len_is_bigger_than_point(self, separate_point)?;
@@ -144,17 +144,22 @@ impl Waveable for Wave {
         Ok(result)
     }
 
-    fn read<R>(_read: R) -> Result<Self, WaveError>
+    fn read<R>(read: R) -> Result<Self, Self::Error>
     where
-        Self: Sized,
+        Self: Waveable + Sized,
         R: Read,
     {
-        todo!()
+        // Wav format
+        if let Ok(wave) = wav_read(read) {
+            return Ok(wave);
+        }
+
+        Err(WaveError::Creation(CreationError::UnsupportedFileFormat))
     }
 
     fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), WaveError>
     where
-        Self: Sized,
+        Self: Waveable + Sized,
         W: Write,
         O: WriteOptions,
     {
@@ -169,6 +174,18 @@ impl Waveable for Wave {
             ),
         }
     }
+}
+
+fn wav_read<R>(read: R) -> Result<Wave, WaveError>
+where
+    R: Read,
+{
+    let wav = rustttwavvv::Wav::read(read)?;
+    let sample_rate: u32 = **wav.sample_rate();
+    let channels: u16 = **wav.channels();
+    let result = Wave::new(wav.samples(), sample_rate, channels)?;
+
+    Ok(result)
 }
 
 fn wav_write<S, W>(
@@ -313,6 +330,9 @@ pub enum CreationError {
 
     #[error("insufficient samples provided: required {required}, found {actual}")]
     TooFewSamples { required: usize, actual: usize },
+
+    #[error("Unsupported file format to read")]
+    UnsupportedFileFormat,
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -392,13 +412,13 @@ mod tests {
         use super::super::{Wave, WaveWriteOptions, Waveable, WriteOptions};
         use std::io::{Read, Seek};
 
-        // fn read(filepath: &str, expected: &Wave) -> Result<(), Box<dyn std::error::Error>> {
-        //     let file = std::fs::File::open(filepath)?;
-        //     let actual: &Wave = &Wave::read(file)?;
+        fn read(filepath: &str, expected: &Wave) -> Result<(), Box<dyn std::error::Error>> {
+            let file = std::fs::File::open(filepath)?;
+            let actual: &Wave = &Wave::read(file)?;
 
-        //     assert_eq!(expected, actual);
-        //     Ok(())
-        // }
+            assert_eq!(expected, actual);
+            Ok(())
+        }
 
         fn write<O: WriteOptions>(
             wave: &Wave,
@@ -417,7 +437,7 @@ mod tests {
 
         #[test]
         fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
-            // const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
+            const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
             let file_format = FileFormat::wav(rustttwavvv::FormatCode::PCM, 8);
             let options = WaveWriteOptions::new(file_format);
             let expected = Wave::new(
@@ -437,7 +457,7 @@ mod tests {
                 1,
             )?;
 
-            // read(FILEPATH, &expected)?;
+            read(FILEPATH, &expected)?;
             write(
                 &expected,
                 options,
@@ -452,7 +472,7 @@ mod tests {
 
         #[test]
         fn _10_samples_16bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
-            // const FILEPATH: &str = "./assets/10-samples-16bit-PCM.wav";
+            const FILEPATH: &str = "./assets/10-samples-16bit-PCM.wav";
             let file_format = FileFormat::wav(rustttwavvv::FormatCode::PCM, 16);
             let options = WaveWriteOptions::new(file_format);
             let expected = Wave::new(
@@ -472,7 +492,7 @@ mod tests {
                 1,
             )?;
 
-            // read(FILEPATH, &expected)?;
+            read(FILEPATH, &expected)?;
             write(
                 &expected,
                 options,
@@ -487,7 +507,7 @@ mod tests {
 
         #[test]
         fn _10_samples_24bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
-            // const FILEPATH: &str = "./assets/10-samples-24bit-PCM.wav";
+            const FILEPATH: &str = "./assets/10-samples-24bit-PCM.wav";
             let file_format = FileFormat::wav(rustttwavvv::FormatCode::PCM, 24);
             let options = WaveWriteOptions::new(file_format);
             let expected = Wave::new(
@@ -507,7 +527,7 @@ mod tests {
                 1,
             )?;
 
-            // read(FILEPATH, &expected)?;
+            read(FILEPATH, &expected)?;
             write(
                 &expected,
                 options,
