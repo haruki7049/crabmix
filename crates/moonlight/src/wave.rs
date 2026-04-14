@@ -15,7 +15,15 @@ impl Wave {
             return Err(WaveError::InvalidSampleRate(sample_rate));
         }
 
-        todo!()
+        if channels == 0 {
+            return Err(WaveError::InvalidChannels(channels));
+        }
+
+        Ok(Self {
+            samples,
+            sample_rate,
+            channels,
+        })
     }
 }
 
@@ -23,4 +31,7 @@ impl Wave {
 pub enum WaveError {
     #[error("Invalid sample_rate, {0:?}")]
     InvalidSampleRate(u32),
+
+    #[error("Invalid channels, {0:?}")]
+    InvalidChannels(u16),
 }
