@@ -497,8 +497,42 @@ mod tests {
             Ok(())
         }
 
-        // #[test]
-        // fn _10_samples_24bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
+        #[test]
+        fn _10_samples_24bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+            // const FILEPATH: &str = "./assets/10-samples-24bit-PCM.wav";
+            let file_format = FileFormat::wav(rustttwavvv::FormatCode::PCM, 44100, 1, 24);
+            let options = WaveWriteOptions::new(file_format);
+            let expected = Wave::new(
+                &[
+                    0.0,
+                    0.02505934537164514,
+                    0.0500201046490794,
+                    0.07478476462182577,
+                    0.0992549776142809,
+                    0.1233358530206505,
+                    0.1469320233979253,
+                    0.16995038627986744,
+                    0.1923021307351745,
+                    0.21389737294881023,
+                ],
+                44100,
+                1,
+            )?;
+
+            // read(FILEPATH, &expected)?;
+            write(
+                &expected,
+                options,
+                &[
+                    82, 73, 70, 70, 66, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1,
+                    0, 1, 0, 68, 172, 0, 0, 204, 4, 2, 0, 3, 0, 24, 0, 100, 97, 116, 97, 30, 0, 0,
+                    0, 0, 0, 0, 37, 53, 3, 15, 103, 6, 140, 146, 9, 99, 180, 12, 120, 201, 15, 171,
+                    206, 18, 239, 192, 21, 91, 157, 24, 253, 96, 27,
+                ],
+            )?;
+            Ok(())
+        }
+
         // #[test]
         // fn _10_samples_32bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
         // #[test]
