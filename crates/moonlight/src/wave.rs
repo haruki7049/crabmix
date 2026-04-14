@@ -430,9 +430,24 @@ mod tests {
         #[test]
         fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
             // const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
-            let file_format = FileFormat::wav(rustttwavvv::FormatCode::PCM, 44100, 1, 16);
+            let file_format = FileFormat::wav(rustttwavvv::FormatCode::PCM, 44100, 1, 8);
             let options = WaveWriteOptions::new(file_format);
-            let expected = Wave::new(&[0.0], 44100, 1)?;
+            let expected = Wave::new(
+                &[
+                    0.5019607843137255,
+                    0.5137254901960784,
+                    0.5254901960784314,
+                    0.5372549019607843,
+                    0.5490196078431373,
+                    0.5607843137254902,
+                    0.5725490196078431,
+                    0.5843137254901961,
+                    0.596078431372549,
+                    0.6078431372549019,
+                ],
+                44100,
+                1,
+            )?;
 
             // read(FILEPATH, &expected)?;
             write(
@@ -444,8 +459,7 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 ],
             )?;
-
-            todo!()
+            Ok(())
         }
 
         // #[test]
