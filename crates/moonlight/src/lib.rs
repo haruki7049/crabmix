@@ -1,1 +1,3 @@
 //! # moonlight
+
+pub mod wave;
