@@ -1,5 +1,7 @@
 //! # wave module
 
+pub use rustttwavvv;
+
 use std::io::{Read, Write};
 use thiserror::Error;
 
@@ -10,8 +12,42 @@ pub struct Wave {
     pub channels: u16,
 }
 
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct WaveWriteOptions {
+    file_format: FileFormat,
+}
+
+impl WriteOptions for WaveWriteOptions {
+    fn file_format(&self) -> FileFormat {
+        self.file_format
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum FileFormat {
+    Wav {
+        format_code: rustttwavvv::FormatCode,
+        sample_rate: u32,
+        channels: u16,
+        bits: u16,
+    },
+}
+
+impl Default for FileFormat {
+    fn default() -> Self {
+        Self::Wav {
+            format_code: rustttwavvv::FormatCode::PCM,
+            sample_rate: 44100,
+            channels: 1,
+            bits: 16,
+        }
+    }
+}
+
 pub trait Waveable {
     type Error: std::error::Error;
+
+    fn samples(&self) -> Vec<f64>;
 
     fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
     where
@@ -27,14 +63,23 @@ pub trait Waveable {
         Self: Sized,
         R: Read;
 
-    fn write<W>(&self, write: &mut W) -> Result<(), WaveError>
+    fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), WaveError>
     where
         Self: Sized,
-        W: Write;
+        W: Write,
+        O: WriteOptions;
+}
+
+pub trait WriteOptions {
+    fn file_format(&self) -> FileFormat;
 }
 
 impl Waveable for Wave {
     type Error = WaveError;
+
+    fn samples(&self) -> Vec<f64> {
+        self.samples.clone()
+    }
 
     fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
     where
@@ -98,13 +143,44 @@ impl Waveable for Wave {
         todo!()
     }
 
-    fn write<W>(&self, _write: &mut W) -> Result<(), WaveError>
+    fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), WaveError>
     where
         Self: Sized,
         W: Write,
+        O: WriteOptions,
     {
-        todo!()
+        match options.file_format() {
+            FileFormat::Wav {
+                format_code,
+                sample_rate,
+                channels,
+                bits,
+            } => wav_write(self, write, format_code, sample_rate, channels, bits),
+        }
     }
+}
+
+fn wav_write<S, W>(
+    wave: &S,
+    write: &mut W,
+    format_code: rustttwavvv::FormatCode,
+    sample_rate: u32,
+    channels: u16,
+    bits: u16,
+) -> Result<(), WaveError>
+where
+    S: Waveable + Sized,
+    W: Write,
+{
+    let wav = rustttwavvv::Wav::new(
+        format_code,
+        sample_rate.into(),
+        channels.into(),
+        bits.try_into()?,
+        wave.samples(),
+    );
+
+    todo!()
 }
 
 impl Wave {
@@ -203,16 +279,19 @@ fn validate_equal_channels(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     Ok(())
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error)]
 pub enum WaveError {
     #[error("creation error: {0}")]
     Creation(#[from] CreationError),
 
     #[error("data validation error: {0}")]
     Data(#[from] DataError),
+
+    #[error("Parsing error for Wav format (rustttwavvv crate): {0}")]
+    Wav(#[from] rustttwavvv::WavError),
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum CreationError {
     #[error("sample rate must be greater than 0, found {0}")]
     InvalidSampleRate(u32),
@@ -224,7 +303,7 @@ pub enum CreationError {
     TooFewSamples { required: usize, actual: usize },
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum DataError {
     #[error("sample rate mismatch: left={left}Hz, right={right}Hz")]
     SampleRateMismatch { left: u32, right: u32 },
@@ -282,20 +361,22 @@ mod tests {
             assert_eq!(expected, actual);
         }
 
-        {
-            let original = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
-            let expected = Err(WaveError::Data(DataError::TooShortSeparatePoint));
-            let actual = original.separate(0);
-
-            assert_eq!(expected, actual);
-        }
-
         Ok(())
     }
 
+    #[test]
+    #[should_panic(expected = "The separate_point value must not be zero")]
+    fn separate_failure() {
+        let original =
+            Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1).expect("Failed to create Wave");
+        _ = original
+            .separate(0)
+            .expect("The separate_point value must not be zero");
+    }
+
     mod read_write_tests {
-        // use super::super::{Wave, Waveable};
-        // use std::io::{Read, Seek};
+        use super::super::{Wave, WaveWriteOptions, Waveable};
+        use std::io::{Read, Seek};
 
         // fn read(filepath: &str, expected: &Wave) -> Result<(), Box<dyn std::error::Error>> {
         //     let file = std::fs::File::open(filepath)?;
@@ -305,34 +386,35 @@ mod tests {
         //     Ok(())
         // }
 
-        // fn write(wave: &Wave, expected: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        //     let mut file = tempfile::tempfile()?;
-        //     wave.write(&mut file)?;
-        //     file.rewind()?;
-        //     let mut written_bytes: Vec<u8> = Vec::new();
-        //     file.read_to_end(&mut written_bytes)?;
+        fn write(wave: &Wave, expected: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+            let mut file = tempfile::tempfile()?;
+            let write_options = WaveWriteOptions::default();
+            wave.write(&mut file, write_options)?;
+            file.rewind()?;
+            let mut written_bytes: Vec<u8> = Vec::new();
+            file.read_to_end(&mut written_bytes)?;
 
-        //     assert_eq!(expected, written_bytes);
-        //     Ok(())
-        // }
+            assert_eq!(expected, written_bytes);
+            Ok(())
+        }
 
-        // #[test]
-        // fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
-        //     const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
-        //     let expected = Wave::new(&[], 44100, 1)?;
+        #[test]
+        fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+            const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
+            let expected = Wave::new(&[0.0], 44100, 1)?;
 
-        //     read(FILEPATH, &expected)?;
-        //     write(
-        //         &expected,
-        //         &[
-        //             82, 73, 70, 70, 46, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1,
-        //             0, 1, 0, 68, 172, 0, 0, 68, 172, 0, 0, 1, 0, 8, 0, 100, 97, 116, 97, 10, 0, 0,
-        //             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        //         ],
-        //     )?;
+            // read(FILEPATH, &expected)?;
+            write(
+                &expected,
+                &[
+                    82, 73, 70, 70, 46, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1,
+                    0, 1, 0, 68, 172, 0, 0, 68, 172, 0, 0, 1, 0, 8, 0, 100, 97, 116, 97, 10, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+            )?;
 
-        //     todo!()
-        // }
+            todo!()
+        }
 
         // #[test]
         // fn _10_samples_16bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
