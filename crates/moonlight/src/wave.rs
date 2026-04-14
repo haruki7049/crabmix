@@ -5,8 +5,8 @@ use thiserror::Error;
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Wave {
     pub samples: Vec<f64>,
-    sample_rate: u32,
-    channels: u16,
+    pub sample_rate: u32,
+    pub channels: u16,
 }
 
 impl Wave {
