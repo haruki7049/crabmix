@@ -9,20 +9,19 @@ pub struct Wave {
     pub channels: u16,
 }
 
-impl Wave {
-    pub fn new(samples: &[f64], sample_rate: u32, channels: u16) -> Result<Self, WaveError> {
-        whether_sample_rate_is_not_zero(sample_rate)?;
-        whether_channels_is_not_zero(channels)?;
-        whether_samples_is_too_short_than_channels(channels, samples)?;
+pub trait Waveable {
+    type Error: std::error::Error;
 
-        Ok(Self {
-            samples: samples.to_vec(),
-            sample_rate,
-            channels,
-        })
-    }
+    fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+        F: Fn(f64, f64) -> f64;
+}
 
-    pub fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, WaveError>
+impl Waveable for Wave {
+    type Error = WaveError;
+
+    fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
     where
         F: Fn(f64, f64) -> f64,
     {
@@ -44,6 +43,20 @@ impl Wave {
 
         Ok(Wave {
             samples,
+            sample_rate,
+            channels,
+        })
+    }
+}
+
+impl Wave {
+    pub fn new(samples: &[f64], sample_rate: u32, channels: u16) -> Result<Self, WaveError> {
+        whether_sample_rate_is_not_zero(sample_rate)?;
+        whether_channels_is_not_zero(channels)?;
+        whether_samples_is_too_short_than_channels(channels, samples)?;
+
+        Ok(Self {
+            samples: samples.to_vec(),
             sample_rate,
             channels,
         })
@@ -163,7 +176,7 @@ pub enum MixError {
 
 #[cfg(test)]
 mod tests {
-    use super::Wave;
+    use super::{Wave, Waveable};
 
     #[test]
     fn new() -> Result<(), Box<dyn std::error::Error>> {
