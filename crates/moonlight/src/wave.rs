@@ -1,6 +1,6 @@
 //! # wave module
 
-use std::io::Read;
+use std::io::{Read, Write};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -26,6 +26,11 @@ pub trait Waveable {
     where
         Self: Sized,
         R: Read;
+
+    fn write<W>(&self, write: &mut W) -> Result<(), WaveError>
+    where
+        Self: Sized,
+        W: Write;
 }
 
 impl Waveable for Wave {
@@ -85,10 +90,18 @@ impl Waveable for Wave {
         Ok(result)
     }
 
-    fn read<R>(read: R) -> Result<Self, WaveError>
+    fn read<R>(_read: R) -> Result<Self, WaveError>
     where
         Self: Sized,
         R: Read,
+    {
+        todo!()
+    }
+
+    fn write<W>(&self, _write: &mut W) -> Result<(), WaveError>
+    where
+        Self: Sized,
+        W: Write,
     {
         todo!()
     }
@@ -281,18 +294,45 @@ mod tests {
     }
 
     mod read_write_tests {
-        fn read() -> Result<(), Box<dyn std::error::Error>> {
-            todo!()
-        }
+        // use super::super::{Wave, Waveable};
+        // use std::io::{Read, Seek};
 
-        fn write() -> Result<(), Box<dyn std::error::Error>> {
-            todo!()
-        }
+        // fn read(filepath: &str, expected: &Wave) -> Result<(), Box<dyn std::error::Error>> {
+        //     let file = std::fs::File::open(filepath)?;
+        //     let actual: &Wave = &Wave::read(file)?;
 
-        #[test]
-        fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
-            todo!()
-        }
+        //     assert_eq!(expected, actual);
+        //     Ok(())
+        // }
+
+        // fn write(wave: &Wave, expected: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        //     let mut file = tempfile::tempfile()?;
+        //     wave.write(&mut file)?;
+        //     file.rewind()?;
+        //     let mut written_bytes: Vec<u8> = Vec::new();
+        //     file.read_to_end(&mut written_bytes)?;
+
+        //     assert_eq!(expected, written_bytes);
+        //     Ok(())
+        // }
+
+        // #[test]
+        // fn _10_samples_8bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+        //     const FILEPATH: &str = "./assets/10-samples-8bit-PCM.wav";
+        //     let expected = Wave::new(&[], 44100, 1)?;
+
+        //     read(FILEPATH, &expected)?;
+        //     write(
+        //         &expected,
+        //         &[
+        //             82, 73, 70, 70, 46, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1,
+        //             0, 1, 0, 68, 172, 0, 0, 68, 172, 0, 0, 1, 0, 8, 0, 100, 97, 116, 97, 10, 0, 0,
+        //             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        //         ],
+        //     )?;
+
+        //     todo!()
+        // }
 
         // #[test]
         // fn _10_samples_16bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
