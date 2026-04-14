@@ -541,8 +541,42 @@ mod tests {
             Ok(())
         }
 
-        // #[test]
-        // fn _10_samples_32bit_pcm() -> Result<(), Box<dyn std::error::Error>> {}
+        #[test]
+        fn _10_samples_32bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+            const FILEPATH: &str = "./assets/10-samples-32bit-PCM.wav";
+            let file_format = FileFormat::wav(rustttwavvv::FormatCode::PCM, 32);
+            let options = WaveWriteOptions::new(file_format);
+            let expected = Wave::new(
+                &[
+                    0.0,
+                    0.025059329357491493,
+                    0.050020210468219695,
+                    0.07478457692767707,
+                    0.09925513719173853,
+                    0.12333576386949782,
+                    0.14693184203791052,
+                    0.16995066412256596,
+                    0.19230180987729775,
+                    0.21389748166031086,
+                ],
+                44100,
+                1,
+            )?;
+
+            read(FILEPATH, &expected)?;
+            write(
+                &expected,
+                options,
+                &[
+                    82, 73, 70, 70, 76, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1,
+                    0, 1, 0, 68, 172, 0, 0, 16, 177, 2, 0, 4, 0, 32, 0, 100, 97, 116, 97, 40, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+            )?;
+            Ok(())
+        }
+
         // #[test]
         // fn _10_samples_32bit_ieeefloat() -> Result<(), Box<dyn std::error::Error>> {}
         // #[test]
