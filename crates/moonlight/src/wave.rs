@@ -166,6 +166,14 @@ mod tests {
     use super::Wave;
 
     #[test]
+    fn new() -> Result<(), Box<dyn std::error::Error>> {
+        _ = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
+        _ = Wave::new(&[1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;
+
+        Ok(())
+    }
+
+    #[test]
     fn mix() -> Result<(), Box<dyn std::error::Error>> {
         let left = Wave::new(&[0.5, 0.5, 0.5, 0.5, 0.5], 44100, 1)?;
         let right = Wave::new(&[1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;
