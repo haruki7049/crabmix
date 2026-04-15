@@ -7,8 +7,6 @@ fn main() -> anyhow::Result<()> {
     let write_options: WaveWriteOptions = WaveWriteOptions::default();
     sinewave.write(&mut file, write_options)?;
 
-    dbg!(sinewave);
-
     Ok(())
 }
 
