@@ -15,3 +15,6 @@ result-*
 
 # Direnv's dotfiles
 .direnv/
+
+# Wavefile
+result-*.wav
