@@ -6,7 +6,7 @@
 //! The main entry point is the [`wave`] module, which provides the [`wave::Wave`]
 //! type for working with audio sample data, along with traits and helpers for
 //! mixing, splitting, and serialising audio in various file formats (currently
-//! WAV via the [`rustttwavvv`](rustttwavvv) crate).
+//! WAV via the [`rustttwavvv`] crate).
 //!
 //! ## Quick start
 //!
