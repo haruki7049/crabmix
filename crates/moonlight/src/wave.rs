@@ -67,12 +67,12 @@ pub trait Waveable {
     where
         Self: Waveable + Sized;
 
-    fn read<R>(read: R) -> Result<Self, WaveError>
+    fn read<R>(read: R) -> Result<Self, Self::Error>
     where
         Self: Waveable + Sized,
         R: Read;
 
-    fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), WaveError>
+    fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), Self::Error>
     where
         Self: Waveable + Sized,
         W: Write,
@@ -157,7 +157,7 @@ impl Waveable for Wave {
         Err(WaveError::Creation(CreationError::UnsupportedFileFormat))
     }
 
-    fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), WaveError>
+    fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), Self::Error>
     where
         Self: Waveable + Sized,
         W: Write,
