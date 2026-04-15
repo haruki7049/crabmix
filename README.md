@@ -1,6 +1,6 @@
 # crabmix
 
-# Build
+## Build
 
 ```bash
 cargo build
@@ -10,4 +10,10 @@ cargo b
 # Please check `cargo xtask --help`.
 cargo x
 cargo xtask
+```
+
+## Examples
+
+```bash
+cargo run --package crabmix --example sinewave
 ```
