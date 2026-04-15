@@ -53,7 +53,7 @@
           cargoArtifacts = craneLib.buildDepsOnly {
             inherit src buildInputs nativeBuildInputs;
           };
-          moonlight = craneLib.buildPackage {
+          crabmix = craneLib.buildPackage {
             inherit
               src
               cargoArtifacts
@@ -115,8 +115,8 @@
           };
 
           packages = {
-            inherit moonlight;
-            default = moonlight;
+            inherit crabmix;
+            default = crabmix;
             doc = cargo-doc;
           };
 

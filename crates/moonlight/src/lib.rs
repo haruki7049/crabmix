@@ -1,3 +1,0 @@
-//! # moonlight
-
-pub mod wave;

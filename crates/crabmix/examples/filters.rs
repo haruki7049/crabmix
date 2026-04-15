@@ -1,4 +1,4 @@
-use moonlight::wave::{Wave, Waveable};
+use crabmix::wave::{Wave, Waveable};
 
 fn main() -> anyhow::Result<()> {
     let original: Wave = Wave::new(&[1.0, 1.0, 1.0, 1.0, 1.0], 44100, 1)?;

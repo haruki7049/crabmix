@@ -1,0 +1,3 @@
+//! # crabmix
+
+pub mod wave;

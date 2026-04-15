@@ -1,4 +1,4 @@
-use moonlight::wave::{FileFormat, Wave, WaveWriteOptions, Waveable};
+use crabmix::wave::{FileFormat, Wave, WaveWriteOptions, Waveable};
 use std::{f64::consts::PI, fs::File};
 
 fn main() -> anyhow::Result<()> {

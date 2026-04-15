@@ -4,7 +4,7 @@
 resolver = "3"
 members = [
   "./crates/xtask",
-  "./crates/moonlight",
+  "./crates/crabmix",
   "./crates/riffy_chan",
   "./crates/rustttwavvv",
 ]
@@ -15,11 +15,11 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/haruki7049/moonlight"
+repository = "https://github.com/haruki7049/crabmix"
 publish = false
 
 [workspace.metadata.crane]
-name = "moonlight"
+name = "crabmix"
 
 [workspace.dependencies]
 anyhow = "1.0.102"

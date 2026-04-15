@@ -1,5 +1,5 @@
 [package]
-name = "moonlight"
+name = "crabmix"
 authors.workspace = true
 version.workspace = true
 description = "Audio processing library for Rustacean & Musician to compile Rust programs to a music"
