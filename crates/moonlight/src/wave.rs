@@ -57,6 +57,8 @@ pub trait Waveable {
     type Error: std::error::Error;
 
     fn samples(&self) -> Vec<f64>;
+    fn sample_rate(&self) -> u32;
+    fn channels(&self) -> u16;
 
     fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
     where
@@ -88,6 +90,14 @@ impl Waveable for Wave {
 
     fn samples(&self) -> Vec<f64> {
         self.samples.clone()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn channels(&self) -> u16 {
+        self.channels
     }
 
     fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
