@@ -1,10 +1,11 @@
-use moonlight::wave::{Wave, WaveWriteOptions, Waveable};
+use moonlight::wave::{FileFormat, Wave, WaveWriteOptions, Waveable};
 use std::{f64::consts::PI, fs::File};
 
 fn main() -> anyhow::Result<()> {
     let sinewave: Wave = generate_sinewave()?;
     let mut file = File::create("result-sinewave.wav")?;
-    let write_options: WaveWriteOptions = WaveWriteOptions::default();
+    let file_format: FileFormat = FileFormat::wav(rustttwavvv::FormatCode::PCM, 16);
+    let write_options: WaveWriteOptions = WaveWriteOptions::new(file_format);
     sinewave.write(&mut file, write_options)?;
 
     Ok(())

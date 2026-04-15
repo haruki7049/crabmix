@@ -167,7 +167,8 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
         match wav.bits {
             Bits::_8Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    let clamped_v = ((*sample as u8) * u8::MAX).clamp(u8::MIN, u8::MAX);
+                    let temp_v = (*sample * u8::MAX as f64) as u8;
+                    let clamped_v = temp_v.clamp(u8::MIN, u8::MAX);
                     data_data.push(clamped_v);
                 }
                 _ => {
@@ -180,7 +181,8 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
             },
             Bits::_16Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    let clamped_v = ((*sample as i16) * i16::MAX).clamp(i16::MIN, i16::MAX);
+                    let temp_v = (*sample * i16::MAX as f64) as i16;
+                    let clamped_v = temp_v.clamp(i16::MIN, i16::MAX);
                     data_data.extend(clamped_v.to_le_bytes());
                 }
                 _ => {
@@ -209,7 +211,8 @@ fn construct_data_chunk(wav: &Wav) -> Result<Chunk, WavError> {
             },
             Bits::_32Bit => match wav.format_code {
                 FormatCode::PCM => {
-                    let clamped_v = ((*sample as i32) * i32::MAX).clamp(i32::MIN, i32::MAX);
+                    let temp_v = (*sample * i32::MAX as f64) as i32;
+                    let clamped_v = temp_v.clamp(i32::MIN, i32::MAX);
                     data_data.extend(clamped_v.to_le_bytes());
                 }
                 FormatCode::IEEEFloat => {
@@ -816,8 +819,8 @@ mod wav_tests {
             &expected,
             &[
                 82, 73, 70, 70, 46, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0,
-                1, 0, 68, 172, 0, 0, 68, 172, 0, 0, 1, 0, 8, 0, 100, 97, 116, 97, 10, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0,
+                1, 0, 68, 172, 0, 0, 68, 172, 0, 0, 1, 0, 8, 0, 100, 97, 116, 97, 10, 0, 0, 0, 128,
+                131, 134, 137, 140, 143, 146, 149, 152, 155,
             ],
         )?;
         Ok(())
@@ -851,7 +854,7 @@ mod wav_tests {
             &[
                 82, 73, 70, 70, 56, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0,
                 1, 0, 68, 172, 0, 0, 136, 88, 1, 0, 2, 0, 16, 0, 100, 97, 116, 97, 20, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 53, 3, 103, 6, 147, 9, 179, 12, 204, 15, 204, 18, 195, 21, 156, 24, 97, 27,
             ],
         )?;
         Ok(())
@@ -920,8 +923,9 @@ mod wav_tests {
             &[
                 82, 73, 70, 70, 76, 0, 0, 0, 87, 65, 86, 69, 102, 109, 116, 32, 16, 0, 0, 0, 1, 0,
                 1, 0, 68, 172, 0, 0, 16, 177, 2, 0, 4, 0, 32, 0, 100, 97, 116, 97, 40, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 228, 36, 53, 3, 240, 15, 103, 6, 128, 138, 146, 9, 112, 100, 180, 12, 96,
+                119, 201, 15, 160, 169, 206, 18, 128, 241, 192, 21, 128, 88, 157, 24, 32, 254, 96,
+                27,
             ],
         )?;
         Ok(())
