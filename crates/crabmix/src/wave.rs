@@ -1,4 +1,19 @@
 //! # wave module
+//!
+//! This module contains the core audio types and traits for the `crabmix`
+//! library. It provides [`Wave`] — an in-memory representation of audio
+//! waveform data — together with the [`Waveable`] trait that defines
+//! operations such as mixing, splitting, reading, and writing audio.
+//!
+//! ## File format support
+//!
+//! Audio files are read and written through the [`Waveable`] trait methods
+//! [`read`](Waveable::read) and [`write`](Waveable::write). The output
+//! format is controlled by a [`WriteOptions`] implementation (see
+//! [`WaveWriteOptions`] and [`FileFormat`]).
+//!
+//! Currently the only supported file format is WAV, powered by the
+//! [`rustttwavvv`] crate.
 
 pub use rustttwavvv;
 pub use rustttwavvv::FormatCode;
@@ -6,19 +21,44 @@ pub use rustttwavvv::FormatCode;
 use std::io::{Read, Write};
 use thiserror::Error;
 
+/// An in-memory representation of an audio waveform.
+///
+/// `Wave` stores normalised `f64` sample data together with the sample rate
+/// and channel count. Samples are interleaved when there are multiple
+/// channels.
+///
+/// Use [`Wave::new`] to construct a waveform from raw samples, or
+/// [`Waveable::read`] to parse one from a file.
+///
+/// # Examples
+///
+/// ```rust
+/// use crabmix::wave::Wave;
+///
+/// let wave = Wave::new(&[0.0, 0.5, -0.5], 44100, 1).unwrap();
+/// assert_eq!(wave.samples.len(), 3);
+/// ```
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Wave {
+    /// The normalised audio sample data, stored as `f64` values.
     pub samples: Vec<f64>,
+    /// The number of samples per second (e.g. 44100).
     pub sample_rate: u32,
+    /// The number of audio channels (e.g. 1 for mono, 2 for stereo).
     pub channels: u16,
 }
 
+/// Options that control how a [`Wave`] is written to a file.
+///
+/// Wraps a [`FileFormat`] describing the target encoding. Pass an instance
+/// of this type to [`Waveable::write`].
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct WaveWriteOptions {
     file_format: FileFormat,
 }
 
 impl WaveWriteOptions {
+    /// Creates a new `WaveWriteOptions` with the given file format.
     pub fn new(file_format: FileFormat) -> Self {
         Self { file_format }
     }
@@ -30,21 +70,30 @@ impl WriteOptions for WaveWriteOptions {
     }
 }
 
+/// Describes the target file format and encoding parameters for writing audio.
+///
+/// Currently only the WAV format is supported.
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum FileFormat {
+    /// WAV file format with a specific format code and bit depth.
     Wav {
+        /// The audio encoding format (e.g. PCM or IEEE Float).
         format_code: rustttwavvv::FormatCode,
+        /// The bit depth per sample (e.g. 8, 16, 24, 32, or 64).
         bits: u16,
     },
 }
 
 impl FileFormat {
+    /// Creates a [`FileFormat::Wav`] variant with the given format code and
+    /// bit depth.
     pub fn wav(format_code: rustttwavvv::FormatCode, bits: u16) -> Self {
         Self::Wav { format_code, bits }
     }
 }
 
 impl Default for FileFormat {
+    /// Returns WAV with PCM encoding at 16-bit depth.
     fn default() -> Self {
         Self::Wav {
             format_code: rustttwavvv::FormatCode::PCM,
@@ -53,27 +102,46 @@ impl Default for FileFormat {
     }
 }
 
+/// Core trait for audio waveform types.
+///
+/// `Waveable` defines the common interface for reading, writing, mixing,
+/// and splitting audio data. The [`Wave`] struct implements this trait.
 pub trait Waveable {
+    /// The error type returned by trait methods.
     type Error: std::error::Error;
 
+    /// Returns a copy of the sample data.
     fn samples(&self) -> Vec<f64>;
+    /// Returns the sample rate in samples per second.
     fn sample_rate(&self) -> u32;
+    /// Returns the number of audio channels.
     fn channels(&self) -> u16;
 
+    /// Mixes two waveforms element-wise using the provided function.
+    ///
+    /// Both waveforms must have the same sample rate, channel count, and
+    /// sample length. The `mixer_fn` receives corresponding sample pairs
+    /// and returns the mixed value.
     fn mix<F>(&self, other: &Self, mixer_fn: F) -> Result<Self, Self::Error>
     where
         Self: Waveable + Sized,
         F: Fn(f64, f64) -> f64;
 
+    /// Splits the waveform at the given sample index.
+    ///
+    /// Returns a tuple of two waveforms: the first contains samples
+    /// `0..separate_point` and the second contains the remainder.
     fn separate(&self, separate_point: usize) -> Result<(Self, Self), Self::Error>
     where
         Self: Waveable + Sized;
 
+    /// Reads and parses an audio file from the given reader.
     fn read<R>(read: R) -> Result<Self, Self::Error>
     where
         Self: Waveable + Sized,
         R: Read;
 
+    /// Writes the waveform to the given writer using the specified options.
     fn write<W, O>(&self, write: &mut W, options: O) -> Result<(), Self::Error>
     where
         Self: Waveable + Sized,
@@ -81,7 +149,9 @@ pub trait Waveable {
         O: WriteOptions;
 }
 
+/// Trait for types that specify the output file format for writing audio.
 pub trait WriteOptions {
+    /// Returns the [`FileFormat`] to use when writing.
     fn file_format(&self) -> FileFormat;
 }
 
@@ -223,6 +293,13 @@ where
 }
 
 impl Wave {
+    /// Creates a new `Wave` from a slice of samples, a sample rate, and a
+    /// channel count.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WaveError`] if the sample rate is zero, the channel count
+    /// is zero, or fewer samples are provided than the number of channels.
     pub fn new(samples: &[f64], sample_rate: u32, channels: u16) -> Result<Self, WaveError> {
         ensure_valid_sample_rate(sample_rate)?;
         ensure_valid_channels(channels)?;
@@ -318,50 +395,66 @@ fn validate_equal_channels(left: &Wave, right: &Wave) -> Result<(), WaveError> {
     Ok(())
 }
 
+/// Errors that can occur when creating or operating on a [`Wave`].
 #[derive(Debug, Error)]
 pub enum WaveError {
+    /// An error occurred while constructing a [`Wave`].
     #[error("creation error: {0}")]
     Creation(#[from] CreationError),
 
+    /// A data validation check failed before performing an operation.
     #[error("data validation error: {0}")]
     Data(#[from] DataError),
 
+    /// An error propagated from the underlying WAV parser ([`rustttwavvv`]).
     #[error("Parsing error for Wav format (rustttwavvv crate): {0}")]
     Wav(#[from] rustttwavvv::WavError),
 }
 
+/// Errors that can occur when constructing a [`Wave`].
 #[derive(Debug, Error, PartialEq)]
 pub enum CreationError {
+    /// The provided sample rate was zero.
     #[error("sample rate must be greater than 0, found {0}")]
     InvalidSampleRate(u32),
 
+    /// The provided channel count was zero.
     #[error("channel count must be greater than 0, found {0}")]
     InvalidChannels(u16),
 
+    /// Fewer samples were provided than the number of channels requires.
     #[error("insufficient samples provided: required {required}, found {actual}")]
     TooFewSamples { required: usize, actual: usize },
 
+    /// The file format is not recognised or supported for reading.
     #[error("Unsupported file format to read")]
     UnsupportedFileFormat,
 }
 
+/// Errors related to data validation when performing operations on a [`Wave`].
 #[derive(Debug, Error, PartialEq)]
 pub enum DataError {
+    /// The two waveforms have different sample rates.
     #[error("sample rate mismatch: left={left}Hz, right={right}Hz")]
     SampleRateMismatch { left: u32, right: u32 },
 
+    /// The two waveforms have different sample lengths.
     #[error("sample length mismatch: left={left}, right={right}")]
     LengthMismatch { left: usize, right: usize },
 
+    /// The two waveforms have different channel counts.
     #[error("channel count mismatch: left={left}, right={right}")]
     ChannelMismatch { left: u16, right: u16 },
 
+    /// The waveform contains no samples.
     #[error("operation cannot be performed on empty samples")]
     EmptySamples,
 
+    /// The waveform has fewer samples than the requested split point.
     #[error("operation cannot be performed on too short samples")]
     TooShortSamples,
 
+    /// The separation point was zero, which is not allowed.
     #[error("operation cannot be performed on separate_point variable which is zero")]
     TooShortSeparatePoint,
 }
