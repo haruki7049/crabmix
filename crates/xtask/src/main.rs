@@ -1,3 +1,22 @@
+//! # xtask
+//!
+//! A cargo-xtask runner for the `crabmix` workspace.
+//!
+//! This binary provides a convenient way to run common development tasks
+//! (build, check, clippy, test, doc) across the entire workspace in both
+//! debug and release profiles. It is invoked via `cargo xtask <action>`.
+//!
+//! ## Available actions
+//!
+//! | Action    | Description                                          |
+//! |-----------|------------------------------------------------------|
+//! | `all`     | Runs build, check, clippy, test, and doc (default).  |
+//! | `build`   | Builds the workspace in debug and release mode.      |
+//! | `check`   | Checks the workspace in debug and release mode.      |
+//! | `clippy`  | Runs Clippy on the workspace in debug and release.   |
+//! | `test`    | Runs tests in debug and release mode.                |
+//! | `doc`     | Generates documentation in debug and release mode.   |
+
 use clap::{Parser, Subcommand};
 use std::process::Command;
 use std::sync::LazyLock;
@@ -24,19 +43,28 @@ fn main() -> Result {
     Ok(())
 }
 
+/// Command-line arguments for the xtask runner.
 #[derive(Parser)]
 struct CLIArgs {
+    /// The development action to perform. Defaults to `All`.
     #[clap(default_value_t = Action::All)]
     action: Action,
 }
 
+/// A development action that can be run across the workspace.
 #[derive(Subcommand, Clone)]
 enum Action {
+    /// Run all actions: build, check, clippy, test, and doc.
     All,
+    /// Build the workspace in debug and release mode.
     Build,
+    /// Check the workspace in debug and release mode.
     Check,
+    /// Run Clippy on the workspace in debug and release mode.
     Clippy,
+    /// Run tests in debug and release mode.
     Test,
+    /// Generate documentation in debug and release mode.
     Doc,
 }
 
@@ -69,8 +97,10 @@ impl std::str::FromStr for Action {
     }
 }
 
+/// Errors that can occur when parsing an [`Action`] from a string.
 #[derive(Debug, Error)]
 enum ActionParseError {
+    /// The input string did not match any known action.
     ParseError(String),
 }
 
