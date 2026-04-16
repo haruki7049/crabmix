@@ -2,11 +2,12 @@
 
 [workspace]
 resolver = "3"
+default-members = ["crates/crabmix"]
 members = [
-  "./crates/xtask",
-  "./crates/crabmix",
-  "./crates/riffy_chan",
-  "./crates/rustttwavvv",
+  "crates/xtask",
+  "crates/crabmix",
+  "crates/riffy_chan",
+  "crates/rustttwavvv",
 ]
 
 [workspace.package]
@@ -28,8 +29,8 @@ confy = "1.0.0"
 directories = "6.0.0"
 i24 = "2.3.3"
 num-traits = "0.2.19"
-riffy_chan.path = "./crates/riffy_chan"
-rustttwavvv.path = "./crates/rustttwavvv"
+riffy_chan.path = "crates/riffy_chan"
+rustttwavvv.path = "crates/rustttwavvv"
 serde = { version = "1.0.219", features = ["derive"] }
 tempfile = "3.27.0"
 thiserror = "2.0.18"

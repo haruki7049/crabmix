@@ -15,5 +15,5 @@ cargo xtask
 ## Examples
 
 ```bash
-cargo run --package crabmix --example sinewave
+cargo run --example sinewave
 ```
